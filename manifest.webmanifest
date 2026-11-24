@@ -1,0 +1,13 @@
+{
+  "name": "Pão na Chapa",
+  "short_name": "Pão na Chapa",
+  "description": "Hambúrgueres, porções, bebidas, sobremesas, combos e promoções.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0E0D0B",
+  "theme_color": "#0E0D0B",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "assets/img/icone.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
