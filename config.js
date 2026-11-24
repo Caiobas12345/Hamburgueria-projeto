@@ -8,6 +8,6 @@
    Enquanto estiver vazio, o site abre normalmente, mas sem cardápio, login e pedidos.
 ===================================================================== */
 window.PNC_CONFIG = {
-  supabaseUrl: '',
-  supabaseKey: ''
+  supabaseUrl: 'https://xzytpqbkthctavnmdvte.supabase.co',
+  supabaseKey: 'sb_publishable_MfMPh_KmWJHAjJhGv2aFBA_L22RdqQw'
 };
