@@ -2,7 +2,7 @@
    PÃO NA CHAPA · Painel administrativo (#admin)
    Só aparece para quem tem papel "admin" (a segurança real está no banco: RLS).
    Seções: visão geral, pedidos, produtos, categorias, adicionais,
-   Explorar (campanhas), entrega e configurações.
+   Explorar (campanhas), entrega, usuários (perfis e suspensão) e configurações.
 ===================================================================== */
 (function () {
   const PNC = window.PNC, E = PNC.estado, sb = PNC.sb, esc = PNC.esc, brl = PNC.brl;
@@ -20,6 +20,7 @@
     ['adicionais', 'Adicionais'],
     ['explorar', 'Explorar'],
     ['entrega', 'Entrega e taxas'],
+    ['usuarios', 'Usuários'],
     ['config', 'Configurações']
   ];
 
@@ -37,7 +38,7 @@
       <div class="adm-corpo" id="adm"><p class="carregando">Carregando...</p></div>
     </section>`;
     const alvo = $('#adm');
-    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, config })[sec](alvo);
+    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, usuarios, config })[sec](alvo);
     contarAndamento();
   }
 
@@ -622,6 +623,181 @@
         await atualizarSite(); entrega(el);
       }
     };
+  }
+
+  /* ===================================================================
+     USUÁRIOS — perfis, suspensão e histórico
+     Tudo passa pelas funções admin_* do banco (migração 001), que conferem
+     se quem pede é administrador. A tela só mostra e envia os pedidos.
+  =================================================================== */
+  const PAPEIS = PNC.PAPEIS;
+  const PAPEL_DESC = {
+    cliente: 'Faz pedidos pelo site e acompanha as entregas.',
+    entregador: 'Recebe acesso às entregas da hamburgueria.',
+    cozinha: 'Recebe acesso aos pedidos da cozinha.'
+  };
+  const ACAO = { papel: 'Perfil alterado', suspensao: 'Conta suspensa', reativacao: 'Conta reativada' };
+  const filtroUsu = { busca: '', papel: '', situacao: '', aba: 'lista' };
+  const dataCurta = d => d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
+  const seloPapel = p => `<span class="papel ${esc(p)}">${esc(PAPEIS[p] || p)}</span>`;
+  const seloSituacao = u => u.ativo ? '<span class="st feito">Ativa</span>' : '<span class="st cancelado">Suspensa</span>';
+  const valorAuditoria = (acao, v) => acao === 'papel' ? (PAPEIS[v] || v) : v === 'ativa' ? 'Ativa' : v === 'suspensa' ? 'Suspensa' : v;
+
+  async function usuarios(el) {
+    const meuId = PNC.sessao.user && PNC.sessao.user.id;
+    const protegido = u => u.papel === 'admin' || u.id === meuId;
+    let lista = [];
+    let espera = 0;
+
+    el.innerHTML = `<div class="adm-cab"><div><p class="sobre">Clientes, entregadores e cozinha</p><h1>Usuários</h1></div>
+      <div class="filtros">${[['lista', 'Usuários'], ['historico', 'Histórico de alterações']].map(a => `<button type="button" class="chip ${a[0] === filtroUsu.aba ? 'on' : ''}" data-aba-usu="${a[0]}">${a[1]}</button>`).join('')}</div></div>
+      <div id="usuCorpo"></div>`;
+    const corpo = $('#usuCorpo');
+
+    /* ---------- aba: lista ---------- */
+    const montarLista = () => {
+      corpo.innerHTML = `<div class="adm-filtros usu-filtros">
+          <input class="campo" id="bUsu" type="search" placeholder="Buscar por nome ou e-mail" value="${esc(filtroUsu.busca)}" aria-label="Buscar usuário">
+          <select class="campo" id="fSit" aria-label="Situação da conta"><option value="">Todas as situações</option><option value="ativas" ${filtroUsu.situacao === 'ativas' ? 'selected' : ''}>Ativas</option><option value="suspensas" ${filtroUsu.situacao === 'suspensas' ? 'selected' : ''}>Suspensas</option></select>
+        </div>
+        <div class="filtros usu-papeis">${[['', 'Todos'], ['cliente', 'Clientes'], ['entregador', 'Entregadores'], ['cozinha', 'Cozinha'], ['admin', 'Administradores']].map(p => `<button type="button" class="chip ${p[0] === filtroUsu.papel ? 'on' : ''}" data-papel-filtro="${p[0]}">${p[1]}</button>`).join('')}</div>
+        <div id="tabUsu"><p class="carregando">Carregando...</p></div>`;
+      $('#bUsu').addEventListener('input', e => { filtroUsu.busca = e.target.value; clearTimeout(espera); espera = setTimeout(carregar, 300); });
+      $('#fSit').addEventListener('change', e => { filtroUsu.situacao = e.target.value; carregar(); });
+      carregar();
+    };
+
+    const carregar = async () => {
+      const alvo = $('#tabUsu');
+      if (!alvo) return;
+      const { data, error } = await sb.rpc('admin_listar_usuarios', { p_busca: filtroUsu.busca.trim(), p_papel: filtroUsu.papel, p_situacao: filtroUsu.situacao });
+      if (!$('#tabUsu')) return;
+      if (error) return erro(alvo, error);
+      lista = data || [];
+      alvo.innerHTML = lista.length ? `<p class="sm usu-contagem">${lista.length} ${lista.length > 1 ? 'usuários' : 'usuário'}</p>
+        <div class="tab-usu" role="table" aria-label="Usuários cadastrados">
+          <div class="tu-cab" role="row"><span role="columnheader">Nome</span><span role="columnheader">E-mail</span><span role="columnheader">Perfil</span><span role="columnheader">Cadastro</span><span role="columnheader">Situação</span><span role="columnheader"><span class="vh">Ações</span></span></div>
+          ${lista.map(u => `<div class="tu-lin${u.ativo ? '' : ' suspensa'}" role="row">
+            <span class="tu-nome" role="cell"><b>${esc(u.nome || 'Sem nome')}</b>${u.telefone ? `<small>${esc(u.telefone)}</small>` : ''}</span>
+            <span class="tu-email" role="cell">${esc(u.email || '—')}</span>
+            <span class="tu-papel" role="cell">${seloPapel(u.papel)}</span>
+            <span class="tu-data" role="cell"><small class="tu-rot">Cadastro </small>${dataCurta(u.criado_em)}</span>
+            <span class="tu-sit" role="cell">${seloSituacao(u)}</span>
+            <span class="tu-acoes" role="cell">${protegido(u) ? `<small class="tu-protegido">${u.id === meuId ? 'Sua conta' : 'Protegido'}</small>` : `<button type="button" class="btn linha pequeno" data-alterar-papel="${esc(u.id)}">Alterar perfil</button>`}<button type="button" class="btn-texto" data-detalhes-usu="${esc(u.id)}">Ver detalhes</button></span>
+          </div>`).join('')}
+        </div>` : '<p class="aviso-vazio">Nenhum usuário encontrado com esses filtros.</p>';
+    };
+
+    /* ---------- aba: histórico ---------- */
+    const montarHistorico = async () => {
+      corpo.innerHTML = '<p class="carregando">Carregando...</p>';
+      const { data, error } = await sb.rpc('admin_historico_perfis', { p_usuario: null, p_limite: 300 });
+      if (error) return erro(corpo, error);
+      corpo.innerHTML = (data || []).length ? `<div class="tab-usu tab-hist" role="table" aria-label="Histórico de alterações de perfil">
+          <div class="tu-cab" role="row"><span role="columnheader">Data</span><span role="columnheader">Usuário</span><span role="columnheader">Alteração</span><span role="columnheader">Feita por</span><span role="columnheader">Motivo</span></div>
+          ${data.map(h => `<div class="tu-lin" role="row">
+            <span role="cell">${PNC.dataHora(h.criado_em)}</span>
+            <span class="tu-nome" role="cell"><b>${esc(h.usuario_nome || 'Sem nome')}</b><small>${esc(h.usuario_email || '')}</small></span>
+            <span role="cell"><b class="hist-acao">${ACAO[h.acao] || esc(h.acao)}</b><small class="hist-de">${esc(valorAuditoria(h.acao, h.valor_anterior))} → ${esc(valorAuditoria(h.acao, h.valor_novo))}</small></span>
+            <span role="cell">${esc(h.alterado_por_nome || '—')}</span>
+            <span class="hist-motivo" role="cell">${esc(h.motivo || '—')}</span>
+          </div>`).join('')}
+        </div>` : '<p class="aviso-vazio">Nenhuma alteração de perfil registrada ainda.</p>';
+    };
+
+    const recarregarAba = () => filtroUsu.aba === 'historico' ? montarHistorico() : montarLista();
+
+    /* ---------- janela: alterar perfil ---------- */
+    const abrirAlterar = u => {
+      const opcoes = ['cliente', 'entregador', 'cozinha'];
+      PNC.abrirJanela(`<button class="j-fechar" type="button" data-fechar-janela aria-label="Fechar">${I.fechar}</button>
+        <form class="adm-form" id="formPapel" novalidate>
+          <div class="adm-form-cab"><h2 id="janelaTitulo">Alterar perfil</h2><p class="sm">${esc(u.nome || 'Sem nome')} · ${esc(u.email || '')}</p></div>
+          <div class="adm-form-corpo">
+            <p class="papel-atual">Perfil atual: ${seloPapel(u.papel)}</p>
+            <fieldset class="opcoes-papel"><legend>Novo perfil</legend>
+              <div class="opcoes">${opcoes.map(p => `<label class="opcao"><input type="radio" name="papel" value="${p}" ${p === u.papel ? 'disabled' : ''}><span><strong>${PAPEIS[p]}${p === u.papel ? ' (atual)' : ''}</strong><small>${PAPEL_DESC[p]}</small></span></label>`).join('')}</div>
+            </fieldset>
+            <label class="cp papel-motivo"><span>Motivo (opcional)</span><input class="campo" name="motivo" maxlength="300" placeholder="Ex.: vai trabalhar nas entregas de fim de semana"></label>
+            <p class="sm">Pedidos, endereços e dados da conta continuam guardados. A mudança vale a partir do próximo acesso da pessoa ao site.</p>
+          </div>
+          <div class="adm-form-rodape"><p class="msg erro" id="papelMsg" hidden></p><span></span>
+            <div class="botoes-fim"><button type="button" class="btn linha" data-fechar-janela>Cancelar</button><button class="btn amarelo" type="submit">Confirmar alteração</button></div></div>
+        </form>`, 'janela-form janela-media');
+      const form = $('#formPapel');
+      form.addEventListener('change', () => { $('#papelMsg').hidden = true; });
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const msg = t => { const m = $('#papelMsg'); m.textContent = t; m.hidden = !t; };
+        const novo = (form.querySelector('[name=papel]:checked') || {}).value;
+        if (!novo) return msg('Escolha o novo perfil.');
+        const btn = form.querySelector('[type=submit]');
+        btn.disabled = true;
+        const { error } = await sb.rpc('admin_alterar_papel', { p_usuario: u.id, p_papel: novo, p_motivo: form.motivo.value.trim() });
+        btn.disabled = false;
+        if (error) return msg(PNC.traduzErro(error.message));
+        PNC.fecharJanela();
+        ok(`${u.nome || 'Usuário'} agora tem o perfil ${PAPEIS[novo]}.`);
+        carregar();
+      });
+    };
+
+    /* ---------- janela: detalhes ---------- */
+    const abrirDetalhes = async u => {
+      PNC.abrirJanela(`<button class="j-fechar" type="button" data-fechar-janela aria-label="Fechar">${I.fechar}</button>
+        <div class="adm-form"><div class="adm-form-cab"><h2 id="janelaTitulo">${esc(u.nome || 'Sem nome')}</h2><p class="sm">${esc(u.email || '')}</p></div>
+        <div class="adm-form-corpo" id="detUsu"><p class="carregando">Carregando...</p></div></div>`, 'janela-form janela-media');
+      const [hist, peds] = await Promise.all([
+        sb.rpc('admin_historico_perfis', { p_usuario: u.id, p_limite: 50 }),
+        sb.from('pedidos').select('id, codigo, criado_em, status, total').eq('usuario_id', u.id).order('criado_em', { ascending: false }).limit(5)
+      ]);
+      const alvo = $('#detUsu');
+      if (!alvo) return;
+      if (hist.error) return erro(alvo, hist.error);
+      const podeSuspender = !protegido(u);
+      alvo.innerHTML = `<dl class="det-dados">
+          <dt>Telefone</dt><dd>${esc(u.telefone || '—')}</dd>
+          <dt>Perfil</dt><dd>${seloPapel(u.papel)}</dd>
+          <dt>Cadastro</dt><dd>${dataCurta(u.criado_em)}</dd>
+          <dt>Situação</dt><dd>${seloSituacao(u)}${!u.ativo && u.suspenso_motivo ? `<small class="det-motivo">Motivo: ${esc(u.suspenso_motivo)}</small>` : ''}</dd>
+          <dt>Pedidos</dt><dd>${u.pedidos || 0}${u.ultimo_pedido ? ` · último em ${dataCurta(u.ultimo_pedido)}` : ''}</dd>
+        </dl>
+        <section class="det-sec"><h3>Últimos pedidos</h3>${(peds.data || []).length ? `<ul class="det-lista">${peds.data.map(p => `<li><span><b>#${esc(p.codigo)}</b><small>${PNC.dataHora(p.criado_em)} · ${PNC.STATUS[p.status] || esc(p.status)}</small></span><b>${brl(p.total)}</b></li>`).join('')}</ul>` : '<p class="sm">Nenhum pedido ainda.</p>'}</section>
+        <section class="det-sec"><h3>Histórico de alterações</h3>${(hist.data || []).length ? `<ul class="det-lista">${hist.data.map(h => `<li><span><b>${ACAO[h.acao] || esc(h.acao)}: ${esc(valorAuditoria(h.acao, h.valor_anterior))} → ${esc(valorAuditoria(h.acao, h.valor_novo))}</b><small>${PNC.dataHora(h.criado_em)} · por ${esc(h.alterado_por_nome || '—')}${h.motivo ? ' · ' + esc(h.motivo) : ''}</small></span></li>`).join('')}</ul>` : '<p class="sm">Nenhuma alteração registrada.</p>'}</section>
+        ${podeSuspender ? `<section class="det-sec zona-risco"><h3>${u.ativo ? 'Suspender conta' : 'Reativar conta'}</h3>
+          <p class="sm">${u.ativo ? 'A conta suspensa continua com todos os dados e pedidos guardados, mas não consegue fazer novos pedidos.' : 'A pessoa volta a poder fazer pedidos normalmente.'}</p>
+          <label class="cp"><span>Motivo${u.ativo ? ' (obrigatório)' : ' (opcional)'}</span><input class="campo" id="motivoSusp" maxlength="300"></label>
+          <p class="msg erro" id="suspMsg" hidden></p>
+          <button type="button" class="btn ${u.ativo ? 'perigo' : 'escuro'}" id="btnSusp">${u.ativo ? 'Suspender conta' : 'Reativar conta'}</button></section>` : ''}`;
+      const btn = $('#btnSusp');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const motivo = $('#motivoSusp').value.trim();
+        const msg = t => { const m = $('#suspMsg'); m.textContent = t; m.hidden = !t; };
+        if (u.ativo && motivo.length < 3) return msg('Informe o motivo da suspensão.');
+        if (u.ativo && !confirm(`Suspender a conta de ${u.nome || u.email}?`)) return;
+        btn.disabled = true;
+        const { error } = await sb.rpc('admin_suspender_usuario', { p_usuario: u.id, p_suspender: u.ativo, p_motivo: motivo });
+        btn.disabled = false;
+        if (error) return msg(PNC.traduzErro(error.message));
+        PNC.fecharJanela();
+        ok(u.ativo ? 'Conta suspensa.' : 'Conta reativada.');
+        carregar();
+      });
+    };
+
+    el.onclick = e => {
+      const aba = e.target.closest('[data-aba-usu]');
+      if (aba) { filtroUsu.aba = aba.dataset.abaUsu; $$('[data-aba-usu]', el).forEach(b => b.classList.toggle('on', b === aba)); return recarregarAba(); }
+      const pf = e.target.closest('[data-papel-filtro]');
+      if (pf) { filtroUsu.papel = pf.dataset.papelFiltro; $$('[data-papel-filtro]', el).forEach(b => b.classList.toggle('on', b === pf)); return carregar(); }
+      const ap = e.target.closest('[data-alterar-papel]');
+      if (ap) { const u = lista.find(x => x.id === ap.dataset.alterarPapel); if (u) abrirAlterar(u); return; }
+      const dt = e.target.closest('[data-detalhes-usu]');
+      if (dt) { const u = lista.find(x => x.id === dt.dataset.detalhesUsu); if (u) abrirDetalhes(u); }
+    };
+
+    recarregarAba();
   }
 
   /* ===================================================================

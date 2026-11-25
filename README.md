@@ -4,44 +4,8 @@ Site da hamburgueria Pão na Chapa: cardápio com fotos e vídeos, janela de det
 
 Projeto independente da Brands: banco, usuários, produtos e pedidos próprios.
 
-Estrutura
-index.html              estrutura do site (cabeçalho, rodapé, barra do celular, janela)
-css/style.css           todo o visual (preto, creme, amarelo nos botões principais)
-js/config.js            URL e chave pública do Supabase  ← preencher
-js/dados.js             leitura do cardápio e regras de preço
-js/carrinho.js          carrinho (salvo no navegador, funciona sem login)
-js/app.js               páginas, login, conta, checkout, acompanhamento do pedido
-js/admin.js             painel administrativo (#admin)
-supabase/schema.sql     banco completo: tabelas, segurança (RLS), função criar_pedido, Storage
-assets/video/banner.mp4 vídeo do banner (provisório: o arquivo enviado veio do Pinterest; troque por um vídeo próprio)
-assets/img/banner.jpg   capa do banner
-assets/img/logo.webp    logo do site (cabeçalho, rodapé e login)
-assets/img/icone-*.png  ícone do site (aba do navegador e "Adicionar à tela inicial")
-manifest.webmanifest    "Adicionar à tela inicial" no celular
-PROMPT-CHATGPT.md       passo a passo para configurar Supabase + login com Google
-Colocar no ar
-Crie um projeto novo no Supabase (só do Pão na Chapa).
-No Supabase, abra SQL Editor, cole todo o supabase/schema.sql e clique em Run.
-Em Project Settings > API, copie a Project URL e a chave publishable (ou anon public) para o js/config.js. Nunca use a chave service_role/secret.
-Em Authentication > URL Configuration, coloque o endereço do site (Vercel) em Site URL e em Redirect URLs.
-Suba a pasta no GitHub e publique na Vercel (projeto estático, sem build).
-Crie sua conta no site com rafatomasi214@gmail.com e confirme o e-mail (ou entre com o Google): ela vira administradora automaticamente. O painel fica em #admin.
+Estrutura index.html estrutura do site (cabeçalho, rodapé, barra do celular, janela) css/style.css todo o visual (preto, creme, amarelo nos botões principais) js/config.js URL e chave pública do Supabase ← preencher js/dados.js leitura do cardápio e regras de preço js/carrinho.js carrinho (salvo no navegador, funciona sem login) js/app.js páginas, login, conta, checkout, acompanhamento do pedido js/admin.js painel administrativo (#admin) supabase/schema.sql banco completo: tabelas, segurança (RLS), função criar_pedido, Storage assets/video/banner.mp4 vídeo do banner (provisório: o arquivo enviado veio do Pinterest; troque por um vídeo próprio) assets/img/banner.jpg capa do banner assets/img/logo.svg logo do site (cabeçalho, rodapé e login) assets/img/icone.svg ícone da aba do navegador assets/img/icone-*.png ícone do "Adicionar à tela inicial" manifest.webmanifest "Adicionar à tela inicial" no celular PROMPT-CHATGPT.md passo a passo para configurar Supabase + login com Google Colocar no ar Crie um projeto novo no Supabase (só do Pão na Chapa). No Supabase, abra SQL Editor, cole todo o supabase/schema.sql e clique em Run. Em Project Settings > API, copie a Project URL e a chave publishable (ou anon public) para o js/config.js. Nunca use a chave service_role/secret. Em Authentication > URL Configuration, coloque o endereço do site (Vercel) em Site URL e em Redirect URLs. Suba a pasta no GitHub e publique na Vercel (projeto estático, sem build). Crie sua conta no site com rafatomasi214@gmail.com e confirme o e-mail (ou entre com o Google): ela vira administradora automaticamente. O painel fica em #admin.
 
 O passo a passo completo (inclusive login com Google) está no PROMPT-CHATGPT.md.
 
-O que fica no painel (nada é inventado no código)
-Pedidos: endereço, telefone, itens, adicionais, troco; mudar status e mandar recado ao cliente. Pedido novo toca um aviso e a lista se atualiza sozinha.
-Produtos: preço, promoção (com data final), tamanhos, ingredientes, o que pode retirar, adicionais permitidos, fotos, disponível/esgotado, destaque, novidade.
-Categorias: foto de capa, vídeo MP4 (computador) e vídeo vertical (celular), fotos extras.
-Adicionais, Explorar (campanhas com foto/vídeo e produtos), Entrega e taxas (bairros), Configurações (WhatsApp, horários, formas de pagamento, chave PIX, faixa de avisos, banner).
-Fotos e vídeos
-Envie pelo painel (botão Enviar): vão para o Storage do Supabase (bucket midia, até 50 MB).
-Vídeos: MP4 (H.264), sem áudio, 5 a 15 s em loop, idealmente até ~8 MB.
-Banner e páginas de categoria: horizontal 1920×1080.
-Versão para celular (opcional): vertical 1080×1350 ou 1080×1920.
-Sem vídeo, o site usa a foto de capa. Sem foto, mostra um cartão escuro elegante.
-Campo foco (ex.: 50% 30%): qual parte da imagem fica sempre visível quando o celular corta.
-Segurança (resumo)
-O preço do pedido é recalculado no banco (função criar_pedido): o navegador não consegue alterar valores.
-Cliente só vê os próprios pedidos e endereços; só administrador edita cardápio e muda status.
-Administrador: e-mails da tabela admins_autorizados, liberados só com e-mail confirmado. Para adicionar outro administrador, rode no SQL Editor: insert into admins_autorizados (email) values ('email@exemplo.com');
+O que fica no painel (nada é inventado no código) Pedidos: endereço, telefone, itens, adicionais, troco; mudar status e mandar recado ao cliente. Pedido novo toca um aviso e a lista se atualiza sozinha. Produtos: preço, promoção (com data final), tamanhos, ingredientes, o que pode retirar, adicionais permitidos, fotos, disponível/esgotado, destaque, novidade. Categorias: foto de capa, vídeo MP4 (computador) e vídeo vertical (celular), fotos extras. Adicionais, Explorar (campanhas com foto/vídeo e produtos), Entrega e taxas (bairros), Configurações (WhatsApp, horários, formas de pagamento, chave PIX, faixa de avisos, banner). Fotos e vídeos Envie pelo painel (botão Enviar): vão para o Storage do Supabase (bucket midia, até 50 MB). Vídeos: MP4 (H.264), sem áudio, 5 a 15 s em loop, idealmente até ~8 MB. Banner e páginas de categoria: horizontal 1920×1080. Versão para celular (opcional): vertical 1080×1350 ou 1080×1920. Sem vídeo, o site usa a foto de capa. Sem foto, mostra um cartão escuro elegante. Campo foco (ex.: 50% 30%): qual parte da imagem fica sempre visível quando o celular corta. Segurança (resumo) O preço do pedido é recalculado no banco (função criar_pedido): o navegador não consegue alterar valores. Cliente só vê os próprios pedidos e endereços; só administrador edita cardápio e muda status. Administrador: e-mails da tabela admins_autorizados, liberados só com e-mail confirmado. Para adicionar outro administrador, rode no SQL Editor: insert into admins_autorizados (email) values ('email@exemplo.com');

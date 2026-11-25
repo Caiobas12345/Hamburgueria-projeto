@@ -32,7 +32,11 @@
      SESSÃO / LOGIN
   =================================================================== */
   const S = (PNC.sessao = { user: null, perfil: null, pronto: !sb, favs: new Set() });
-  PNC.ehAdmin = () => !!(S.perfil && S.perfil.papel === 'admin');
+  PNC.PAPEIS = { cliente: 'Cliente', entregador: 'Entregador', cozinha: 'Cozinha', admin: 'Administrador' };
+  /* a permissão de verdade é conferida no banco; aqui só decide o que mostrar */
+  PNC.contaAtiva = () => !S.perfil || S.perfil.ativo !== false;
+  PNC.papel = () => (S.perfil && S.perfil.ativo !== false ? S.perfil.papel || 'cliente' : null);
+  PNC.ehAdmin = () => PNC.papel() === 'admin';
 
   async function carregarPerfil() {
     S.favs = new Set();
@@ -357,7 +361,7 @@
     return `<section class="auth">
       <div class="auth-form">
         <div class="auth-box">
-          <a class="auth-logo" href="#inicio">${ICON.chama}<span>Pão na Chapa</span></a>
+          <a class="auth-logo" href="#inicio" aria-label="Pão na Chapa, início"><img class="logo-img" src="assets/img/logo.svg" alt="" width="92" height="92"></a>
           <h1>${esc(titulo)}</h1>
           <p class="auth-sub">${esc(sub)}</p>
           ${!sb ? '<p class="msg erro">O login ainda não foi configurado (falta ligar o Supabase em js/config.js).</p>' : ''}
@@ -433,6 +437,8 @@
     if (/rate limit|too many/i.test(m)) return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
     if (/password should be at least/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
     if (/provider is not enabled/i.test(m)) return 'O login com Google ainda não foi ativado no Supabase.';
+    if (/produtos_promo_menor/i.test(m)) return 'O preço promocional precisa ser menor que o preço normal.';
+    if (/could not find the function|function .* does not exist/i.test(m)) return 'Esta função ainda não está ativa no banco. Rode a migração mais recente no SQL Editor do Supabase.';
     return m || 'Algo deu errado. Tente novamente.';
   };
   PNC.traduzErro = traduzErro;
@@ -501,8 +507,11 @@
     const aba = params[0] || 'pedidos';
     const abas = [['pedidos', 'Meus pedidos'], ['dados', 'Dados pessoais'], ['enderecos', 'Endereços'], ['favoritos', 'Favoritos']];
     const nome = (S.perfil && S.perfil.nome) || (S.user && S.user.email) || '';
-    app.innerHTML = `<section class="titulo-pag claro"><div class="caixa conta-topo"><div><p class="sobre">Minha conta</p><h1>Olá${nome ? ', ' + esc(nome.split(' ')[0]) : ''}</h1></div>
+    const papel = (S.perfil && S.perfil.papel) || 'cliente';
+    const suspensa = !PNC.contaAtiva();
+    app.innerHTML = `<section class="titulo-pag claro"><div class="caixa conta-topo"><div><p class="sobre">Minha conta</p><h1>Olá${nome ? ', ' + esc(nome.split(' ')[0]) : ''}</h1>${papel !== 'cliente' ? `<p class="conta-papel">Perfil: <span class="papel ${esc(papel)}">${esc(PNC.PAPEIS[papel] || papel)}</span></p>` : ''}</div>
       <div class="conta-acoes">${PNC.ehAdmin() ? '<a class="btn escuro" href="#admin">Painel administrativo</a>' : ''}<button class="btn linha" type="button" data-sair>Sair da conta</button></div></div></section>
+      ${suspensa ? `<div class="caixa"><p class="msg erro conta-aviso">Sua conta está suspensa${S.perfil.suspenso_motivo ? ' (' + esc(S.perfil.suspenso_motivo) + ')' : ''}. Você continua vendo seus pedidos, mas não pode fazer novos. Fale com a hamburgueria.</p></div>` : ''}
       <nav class="abas"><div class="caixa abas-in">${abas.map(a => `<a href="#conta/${a[0]}" class="${a[0] === aba ? 'on' : ''}">${a[1]}</a>`).join('')}</div></nav>
       <section class="secao curta"><div class="caixa" id="contaCorpo"><p class="carregando">Carregando...</p></div></section>`;
     const corpo = $('#contaCorpo');
@@ -701,13 +710,14 @@
     const tipos = [c.entrega_ativa && 'entrega', c.retirada_ativa && 'retirada'].filter(Boolean);
     const pags = Object.keys(PAGAMENTO).filter(k => (c.pagamentos || {})[k]);
     const aberto = PNC.abertoAgora();
-    const fechado = !c.aceitando_pedidos || aberto === false || !tipos.length || !pags.length;
+    const suspensa = !PNC.contaAtiva();
+    const fechado = suspensa || !c.aceitando_pedidos || aberto === false || !tipos.length || !pags.length;
     const perfil = S.perfil || {};
 
     app.innerHTML = `<section class="titulo-pag claro"><div class="caixa"><a class="voltar escuro" href="#carrinho">${ICON.voltar} Carrinho</a><h1>Finalizar pedido</h1></div></section>
       <section class="secao curta"><div class="caixa carrinho-grid">
         <form class="checkout" id="formCheckout" novalidate>
-          ${fechado ? `<p class="msg erro">${!c.aceitando_pedidos || aberto === false ? 'A loja não está recebendo pedidos agora.' + (PNC.horarioHoje() ? ' Hoje: ' + esc(PNC.horarioHoje()) + '.' : '') : 'A loja ainda não configurou entrega/retirada ou pagamento.'}</p>` : ''}
+          ${fechado ? `<p class="msg erro">${suspensa ? 'Sua conta está suspensa e não pode fazer pedidos. Fale com a hamburgueria.' : !c.aceitando_pedidos || aberto === false ? 'A loja não está recebendo pedidos agora.' + (PNC.horarioHoje() ? ' Hoje: ' + esc(PNC.horarioHoje()) + '.' : '') : 'A loja ainda não configurou entrega/retirada ou pagamento.'}</p>` : ''}
           <fieldset><legend>1. Como você quer receber?</legend>
             <div class="opcoes">${tipos.map((t, i) => `<label class="opcao"><input type="radio" name="tipo" value="${t}" ${i ? '' : 'checked'}><span><strong>${t === 'entrega' ? 'Entrega' : 'Retirada no balcão'}</strong><small>${esc(t === 'entrega' ? c.tempo_entrega : c.tempo_retirada) || (t === 'entrega' ? 'Levamos até você' : (c.endereco ? esc(c.endereco) : 'Você retira na loja'))}</small></span></label>`).join('')}</div>
           </fieldset>
@@ -974,7 +984,7 @@
     const c = E.config;
     const zap = c.whatsapp ? linkWhats(c.whatsapp, 'Olá! Vim pelo site do Pão na Chapa.') : '';
     $('#rodape').innerHTML = `<div class="caixa rodape-cols">
-        <div class="rd-marca"><a class="logo" href="#inicio">${ICON.chama}<span class="logo-txt">Pão na Chapa</span></a>${c.endereco ? `<p>${esc(c.endereco)}</p>` : ''}${PNC.horarioHoje() ? `<p>Hoje: ${esc(PNC.horarioHoje())}</p>` : ''}</div>
+        <div class="rd-marca"><a class="logo" href="#inicio" aria-label="Pão na Chapa, início"><img class="logo-img" src="assets/img/logo.svg" alt="" width="112" height="112" loading="lazy"></a>${c.endereco ? `<p>${esc(c.endereco)}</p>` : ''}${PNC.horarioHoje() ? `<p>Hoje: ${esc(PNC.horarioHoje())}</p>` : ''}</div>
         <div><h3>Cardápio</h3>${E.categorias.map(x => `<a href="#categoria/${esc(x.slug)}">${esc(x.nome)}</a>`).join('')}</div>
         <div><h3>Minha conta</h3><a href="#conta">${S.user ? 'Minha conta' : 'Entrar'}</a>${S.user ? '' : '<a href="#criar-conta">Criar conta</a>'}<a href="#conta/pedidos">Meus pedidos</a><a href="#carrinho">Carrinho</a></div>
         <div><h3>Atendimento</h3>${zap ? `<a href="${zap}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${c.instagram ? `<a href="${esc(c.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}<a href="#novidades">Novidades</a></div>

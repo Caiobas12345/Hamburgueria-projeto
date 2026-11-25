@@ -2,7 +2,7 @@
    PÃO NA CHAPA · Visual
    Preto nas áreas cinematográficas (banner, categorias, Explorar),
    creme nas áreas de leitura e compra. Amarelo só no botão principal,
-   dourado em detalhes finos, chama só no logo.
+   dourado em detalhes finos, selo redondo como logo.
 ===================================================================== */
 :root {
   --preto: #0E0D0B;
@@ -427,15 +427,22 @@ textarea.campo {
   color: #fff
 }
 
-.logo svg,
-.logo-chama {
-  width: 26px;
-  height: 32px;
-  stroke: none
+/* logo: selo redondo (assets/img/logo.svg) */
+.logo-img {
+  display: block;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  transition: transform .25s ease
 }
 
-.rodape .logo svg {
-  fill: var(--laranja)
+.logo:hover .logo-img {
+  transform: rotate(-6deg) scale(1.04)
+}
+
+.rodape .logo-img {
+  width: 112px;
+  height: 112px
 }
 
 .logo-txt {
@@ -1736,11 +1743,9 @@ fieldset.bloco legend {
   letter-spacing: .06em
 }
 
-.auth-logo svg {
-  width: 22px;
-  height: 28px;
-  fill: var(--laranja);
-  stroke: none
+.auth-logo .logo-img {
+  width: 92px;
+  height: 92px
 }
 
 .auth h1 {
@@ -2458,6 +2463,16 @@ fieldset.bloco legend {
     font-size: 1.35rem
   }
 
+  .topo .logo-img {
+    width: 50px;
+    height: 50px
+  }
+
+  .rodape .logo-img {
+    width: 96px;
+    height: 96px
+  }
+
   .acoes .ic-perfil,
   .acoes .ic-sacola {
     display: none
@@ -2616,6 +2631,11 @@ fieldset.bloco legend {
 
   .auth-logo {
     margin-bottom: 24px
+  }
+
+  .auth-logo .logo-img {
+    width: 76px;
+    height: 76px
   }
 
   /* janela do produto: ocupa quase a tela toda, de baixo para cima */
@@ -3563,6 +3583,7 @@ button.chip {
 @media (max-width:900px) {
   .adm {
     grid-template-columns: minmax(0, 1fr);
+    align-content: start;
     overflow-x: clip
   }
 
@@ -3659,5 +3680,329 @@ button.chip {
 
   .adm-form {
     max-height: calc(100svh - 24px)
+  }
+}
+
+/* =====================================================================
+   USUÁRIOS (perfis, suspensão e histórico)
+===================================================================== */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap
+}
+
+.papel {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--creme2);
+  color: var(--tinta);
+  font: 700 .66rem var(--texto);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap
+}
+
+.papel.entregador {
+  background: #FDE7D7;
+  color: #8A3A08
+}
+
+.papel.cozinha {
+  background: #F6EBCB;
+  color: #6B5310
+}
+
+.papel.admin {
+  background: var(--preto);
+  color: var(--amarelo)
+}
+
+.conta-papel {
+  margin-top: 14px;
+  font-size: .9rem;
+  color: var(--cinza)
+}
+
+.conta-aviso {
+  margin-top: 20px
+}
+
+.usu-filtros {
+  grid-template-columns: 1fr 240px
+}
+
+.usu-papeis {
+  margin-bottom: 18px
+}
+
+.usu-contagem {
+  margin-bottom: 10px
+}
+
+.tab-usu {
+  display: grid;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco);
+  overflow: hidden
+}
+
+.tu-cab,
+.tu-lin {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) 130px 104px 96px 236px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px
+}
+
+.tu-cab {
+  background: var(--creme2);
+  font: 700 .66rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cinza)
+}
+
+.tu-lin {
+  border-top: 1px solid var(--linha)
+}
+
+.tu-lin.suspensa {
+  background: #FFF8F6
+}
+
+.tu-nome b {
+  display: block;
+  overflow-wrap: anywhere
+}
+
+.tu-nome small,
+.hist-de {
+  display: block;
+  color: var(--cinza);
+  font-size: .82rem
+}
+
+.tu-email {
+  overflow-wrap: anywhere;
+  font-size: .92rem
+}
+
+.tu-rot {
+  display: none
+}
+
+.tu-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  justify-content: flex-end
+}
+
+.tu-protegido {
+  color: var(--cinza);
+  font-size: .82rem
+}
+
+.tab-hist .tu-cab,
+.tab-hist .tu-lin {
+  grid-template-columns: 130px minmax(0, 1.3fr) minmax(0, 1.1fr) minmax(0, .8fr) minmax(0, 1fr)
+}
+
+.hist-acao {
+  font-weight: 700
+}
+
+.hist-motivo {
+  color: var(--cinza);
+  font-size: .9rem
+}
+
+.janela-media {
+  width: min(640px, 100%)
+}
+
+.adm-form-cab .sm {
+  margin-top: 6px
+}
+
+.papel-atual {
+  margin-bottom: 20px
+}
+
+.opcoes-papel {
+  margin: 0;
+  padding: 0;
+  border: 0
+}
+
+.opcoes-papel legend,
+.det-sec h3 {
+  padding: 0;
+  margin-bottom: 12px;
+  font: 700 .74rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--tinta)
+}
+
+.opcao:has(input:disabled) {
+  opacity: .5;
+  cursor: not-allowed
+}
+
+.papel-motivo {
+  margin: 20px 0 12px
+}
+
+.det-dados {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0
+}
+
+.det-dados dt {
+  padding-top: 4px;
+  font: 700 .68rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cinza)
+}
+
+.det-dados dd {
+  margin: 0
+}
+
+.det-motivo {
+  display: block;
+  margin-top: 6px;
+  color: var(--cinza)
+}
+
+.det-sec {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--linha)
+}
+
+.det-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px
+}
+
+.det-lista li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: .92rem
+}
+
+.det-lista small {
+  display: block;
+  color: var(--cinza);
+  font-size: .82rem
+}
+
+.zona-risco {
+  display: grid;
+  gap: 12px;
+  justify-items: start
+}
+
+.zona-risco .cp {
+  width: 100%
+}
+
+.btn.perigo {
+  border-color: var(--vermelho);
+  background: transparent;
+  color: var(--vermelho)
+}
+
+.btn.perigo:hover:not(:disabled) {
+  background: var(--vermelho);
+  color: #fff
+}
+
+@media (max-width:1100px) {
+  .tu-cab {
+    display: none
+  }
+
+  .tu-lin {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "nome sit"
+      "email email"
+      "papel data"
+      "acoes acoes";
+    gap: 8px 12px;
+    padding: 16px
+  }
+
+  .tu-nome {
+    grid-area: nome
+  }
+
+  .tu-sit {
+    grid-area: sit;
+    justify-self: end
+  }
+
+  .tu-email {
+    grid-area: email
+  }
+
+  .tu-papel {
+    grid-area: papel
+  }
+
+  .tu-data {
+    grid-area: data;
+    justify-self: end;
+    font-size: .86rem
+  }
+
+  .tu-acoes {
+    grid-area: acoes;
+    justify-content: flex-start;
+    padding-top: 6px
+  }
+
+  .tu-rot {
+    display: inline;
+    color: var(--cinza)
+  }
+
+  .tab-hist .tu-lin {
+    grid-template-columns: 1fr;
+    grid-template-areas: none;
+    gap: 4px
+  }
+}
+
+@media (max-width:900px) {
+  .usu-filtros {
+    grid-template-columns: 1fr
+  }
+
+  .det-dados {
+    grid-template-columns: 1fr;
+    gap: 2px
+  }
+
+  .det-dados dd {
+    margin-bottom: 10px
   }
 }
