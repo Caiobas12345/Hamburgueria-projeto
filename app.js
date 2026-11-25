@@ -357,7 +357,7 @@
     return `<section class="auth">
       <div class="auth-form">
         <div class="auth-box">
-          <a class="auth-logo" href="#inicio">${ICON.chama}<span>Pão na Chapa</span></a>
+          <a class="auth-logo" href="#inicio" aria-label="Pão na Chapa, início"><img class="logo-img" src="assets/img/logo.webp" alt="" width="160" height="160"></a>
           <h1>${esc(titulo)}</h1>
           <p class="auth-sub">${esc(sub)}</p>
           ${!sb ? '<p class="msg erro">O login ainda não foi configurado (falta ligar o Supabase em js/config.js).</p>' : ''}
@@ -974,7 +974,7 @@
     const c = E.config;
     const zap = c.whatsapp ? linkWhats(c.whatsapp, 'Olá! Vim pelo site do Pão na Chapa.') : '';
     $('#rodape').innerHTML = `<div class="caixa rodape-cols">
-        <div class="rd-marca"><a class="logo" href="#inicio">${ICON.chama}<span class="logo-txt">Pão na Chapa</span></a>${c.endereco ? `<p>${esc(c.endereco)}</p>` : ''}${PNC.horarioHoje() ? `<p>Hoje: ${esc(PNC.horarioHoje())}</p>` : ''}</div>
+        <div class="rd-marca"><a class="logo" href="#inicio" aria-label="Pão na Chapa, início"><img class="logo-img" src="assets/img/logo.webp" alt="" width="160" height="160" loading="lazy"></a>${c.endereco ? `<p>${esc(c.endereco)}</p>` : ''}${PNC.horarioHoje() ? `<p>Hoje: ${esc(PNC.horarioHoje())}</p>` : ''}</div>
         <div><h3>Cardápio</h3>${E.categorias.map(x => `<a href="#categoria/${esc(x.slug)}">${esc(x.nome)}</a>`).join('')}</div>
         <div><h3>Minha conta</h3><a href="#conta">${S.user ? 'Minha conta' : 'Entrar'}</a>${S.user ? '' : '<a href="#criar-conta">Criar conta</a>'}<a href="#conta/pedidos">Meus pedidos</a><a href="#carrinho">Carrinho</a></div>
         <div><h3>Atendimento</h3>${zap ? `<a href="${zap}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${c.instagram ? `<a href="${esc(c.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}<a href="#novidades">Novidades</a></div>

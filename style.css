@@ -2,7 +2,7 @@
    PÃO NA CHAPA · Visual
    Preto nas áreas cinematográficas (banner, categorias, Explorar),
    creme nas áreas de leitura e compra. Amarelo só no botão principal,
-   dourado em detalhes finos, chama só no logo.
+   dourado em detalhes finos, selo redondo como logo.
 ===================================================================== */
 :root {
   --preto: #0E0D0B;
@@ -427,15 +427,22 @@ textarea.campo {
   color: #fff
 }
 
-.logo svg,
-.logo-chama {
-  width: 26px;
-  height: 32px;
-  stroke: none
+/* logo: selo redondo (assets/img/logo.webp) */
+.logo-img {
+  display: block;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  transition: transform .25s ease
 }
 
-.rodape .logo svg {
-  fill: var(--laranja)
+.logo:hover .logo-img {
+  transform: rotate(-6deg) scale(1.04)
+}
+
+.rodape .logo-img {
+  width: 112px;
+  height: 112px
 }
 
 .logo-txt {
@@ -1736,11 +1743,9 @@ fieldset.bloco legend {
   letter-spacing: .06em
 }
 
-.auth-logo svg {
-  width: 22px;
-  height: 28px;
-  fill: var(--laranja);
-  stroke: none
+.auth-logo .logo-img {
+  width: 92px;
+  height: 92px
 }
 
 .auth h1 {
@@ -2458,6 +2463,16 @@ fieldset.bloco legend {
     font-size: 1.35rem
   }
 
+  .topo .logo-img {
+    width: 50px;
+    height: 50px
+  }
+
+  .rodape .logo-img {
+    width: 96px;
+    height: 96px
+  }
+
   .acoes .ic-perfil,
   .acoes .ic-sacola {
     display: none
@@ -2616,6 +2631,11 @@ fieldset.bloco legend {
 
   .auth-logo {
     margin-bottom: 24px
+  }
+
+  .auth-logo .logo-img {
+    width: 76px;
+    height: 76px
   }
 
   /* janela do produto: ocupa quase a tela toda, de baixo para cima */
