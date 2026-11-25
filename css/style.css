@@ -4006,3 +4006,267 @@ button.chip {
     margin-bottom: 10px
   }
 }
+
+/* =====================================================================
+   FLUXO DO PEDIDO (cliente e painel)
+===================================================================== */
+.cancelado-box small {
+  display: block;
+  margin-top: 6px;
+  font-weight: 500
+}
+
+.pedido-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px
+}
+
+.pedido-acoes .btn-texto:hover {
+  color: var(--vermelho)
+}
+
+.adm-cozinha {
+  margin-top: auto;
+  color: var(--amarelo)
+}
+
+.adm-cozinha+.adm-site {
+  margin-top: 0
+}
+
+/* =====================================================================
+   PAINEL DA COZINHA
+===================================================================== */
+body[data-rota="cozinha"] .rodape {
+  display: none
+}
+
+.coz {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: clamp(24px, 3vw, 40px) var(--lado) 48px
+}
+
+.coz-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px
+}
+
+.coz-cab h1 {
+  font-size: clamp(2.4rem, 4vw, 3.4rem)
+}
+
+.coz-ferramentas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px
+}
+
+.coz-relogio {
+  font: 800 1.8rem/1 var(--titulo);
+  letter-spacing: .02em
+}
+
+.coz-colunas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start
+}
+
+.coz-col {
+  min-width: 0;
+  padding: 14px;
+  border-radius: var(--raio);
+  background: var(--creme2)
+}
+
+.coz-col h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 4px 14px;
+  font-size: 1.6rem
+}
+
+.coz-col h2 i {
+  min-width: 30px;
+  padding: 0 8px;
+  border-radius: 15px;
+  background: var(--preto);
+  color: var(--amarelo);
+  font: 800 .9rem/30px var(--texto);
+  font-style: normal;
+  text-align: center
+}
+
+.coz-lista {
+  display: grid;
+  gap: 12px
+}
+
+.coz-vazio {
+  padding: 28px 8px;
+  color: var(--cinza);
+  text-align: center
+}
+
+.coz-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--linha);
+  border-left: 4px solid var(--dourado);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.coz-card.retirada {
+  border-left-color: var(--laranja)
+}
+
+.coz-card.atrasado {
+  border-color: #F3C2BD;
+  border-left-color: var(--vermelho)
+}
+
+.coz-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px
+}
+
+.coz-card header strong {
+  font: 800 1.9rem/1 var(--titulo)
+}
+
+.coz-tipo {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--preto);
+  color: #fff;
+  font: 700 .66rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase
+}
+
+.coz-card.retirada .coz-tipo {
+  background: var(--laranja)
+}
+
+.coz-meta {
+  color: var(--cinza);
+  font-size: .88rem
+}
+
+.coz-card.atrasado .coz-tempo {
+  color: var(--vermelho);
+  font-weight: 700
+}
+
+.coz-itens {
+  list-style: none;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--linha);
+  display: grid;
+  gap: 12px
+}
+
+.coz-itens li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px
+}
+
+.coz-qtd {
+  font: 800 1.5rem/1.1 var(--titulo)
+}
+
+.coz-itens b {
+  display: block;
+  font-size: 1.05rem;
+  line-height: 1.3
+}
+
+.coz-itens em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--cinza)
+}
+
+.coz-add,
+.coz-rem,
+.coz-obs {
+  display: block;
+  font-size: .92rem;
+  line-height: 1.45
+}
+
+.coz-add {
+  color: var(--verde);
+  font-weight: 600
+}
+
+.coz-rem {
+  color: var(--vermelho);
+  font-weight: 700
+}
+
+.coz-obs {
+  font-style: italic;
+  color: #4A443D
+}
+
+.coz-obs-ped {
+  padding: 10px 12px;
+  border-radius: var(--raio);
+  background: #FFF6D6;
+  font-size: .92rem
+}
+
+.coz-sit {
+  font: 700 .74rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cinza)
+}
+
+.coz-rodape {
+  margin-top: 18px
+}
+
+@media (max-width:1100px) {
+  .coz-colunas {
+    grid-template-columns: 1fr
+  }
+}
+
+/* cartões de pedido do painel: selo de status longo quebra a linha em vez de vazar */
+.card-ped {
+  min-width: 0
+}
+
+.card-ped header {
+  flex-wrap: wrap
+}
+
+.card-ped .cp-itens li span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere
+}
+
+/* cozinha: som ligado bem visível */
+.coz-ferramentas [aria-pressed="true"] {
+  background: var(--preto);
+  border-color: var(--preto);
+  color: var(--amarelo)
+}

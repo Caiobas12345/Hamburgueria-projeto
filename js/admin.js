@@ -34,6 +34,7 @@
     const sec = SECOES.some(s => s[0] === params[0]) ? params[0] : 'pedidos';
     app.innerHTML = `<section class="adm">
       <aside class="adm-menu"><p class="sobre">Painel</p><nav>${SECOES.map(s => `<a href="#admin/${s[0]}" class="${s[0] === sec ? 'on' : ''}">${s[1]}<i data-cont="${s[0]}"></i></a>`).join('')}</nav>
+        <a class="adm-site adm-cozinha" href="#cozinha">Painel da cozinha</a>
         <a class="adm-site" href="#inicio">${I.voltar} Ver o site</a></aside>
       <div class="adm-corpo" id="adm"><p class="carregando">Carregando...</p></div>
     </section>`;
@@ -45,7 +46,7 @@
   function sair() { limpar.forEach(fn => { try { fn(); } catch (e) { } }); limpar = []; }
 
   async function contarAndamento() {
-    const { count } = await sb.from('pedidos').select('id', { count: 'exact', head: true }).in('status', ['recebido', 'em_preparo', 'saiu_entrega', 'pronto_retirada']);
+    const { count } = await sb.from('pedidos').select('id', { count: 'exact', head: true }).in('status', PNC.ANDAMENTO);
     const el = $('[data-cont="pedidos"]');
     if (el) el.textContent = count ? count : '';
   }
@@ -227,7 +228,7 @@
     const hoje = diaSP(new Date());
     const deHoje = validos.filter(p => diaSP(p.criado_em) === hoje);
     const soma = l => l.reduce((s, p) => s + Number(p.total), 0);
-    const andamento = data.filter(p => ['recebido', 'em_preparo', 'saiu_entrega', 'pronto_retirada'].includes(p.status)).length;
+    const andamento = data.filter(p => PNC.ANDAMENTO.includes(p.status)).length;
 
     const dias = [];
     for (let i = 13; i >= 0; i--) {
@@ -266,11 +267,27 @@
   /* ===================================================================
      PEDIDOS
   =================================================================== */
-  const ANDAMENTO = ['recebido', 'em_preparo', 'saiu_entrega', 'pronto_retirada'];
+  const ANDAMENTO = PNC.ANDAMENTO;
   let filtroPed = 'andamento';
 
+  /* próximo passo de cada pedido para o admin (o banco confere de novo em mudar_status_pedido) */
+  function acoesAdmin(p) {
+    const pix = p.pagamento === 'pix';
+    switch (p.status) {
+      case 'aguardando_confirmacao': return [[pix ? 'aguardando_pagamento' : 'confirmado', 'Aceitar pedido']];
+      case 'aguardando_pagamento': return [['pagamento_aprovado', 'Pagamento recebido']];
+      case 'pagamento_aprovado':
+      case 'confirmado': return [['em_preparo', 'Iniciar preparo']];
+      case 'em_preparo': return [['pronto', 'Pedido pronto']];
+      case 'pronto': return p.tipo === 'retirada' ? [['entregue', 'Cliente retirou']] : [['aguardando_entregador', 'Chamar entregador']];
+      case 'aguardando_entregador': return [['saiu_entrega', 'Saiu para entrega']];
+      case 'saiu_entrega': return [['entregue', 'Marcar como entregue']];
+      default: return [];
+    }
+  }
+
   async function pedidos(el) {
-    const filtros = [['andamento', 'Em andamento'], ['hoje', 'Hoje'], ['concluido', 'Concluídos'], ['cancelado', 'Cancelados'], ['todos', 'Todos']];
+    const filtros = [['andamento', 'Em andamento'], ['hoje', 'Hoje'], ['entregue', 'Entregues'], ['cancelado', 'Cancelados'], ['todos', 'Todos']];
     el.innerHTML = `<div class="adm-cab"><div><p class="sobre">Atualiza sozinho</p><h1>Pedidos</h1></div>
       <div class="filtros">${filtros.map(f => `<button type="button" class="chip ${f[0] === filtroPed ? 'on' : ''}" data-filtro="${f[0]}">${f[1]}</button>`).join('')}</div></div>
       <div id="listaPed"><p class="carregando">Carregando...</p></div>`;
@@ -280,7 +297,7 @@
       if (!lista) return;
       let q = sb.from('pedidos').select('*').order('criado_em', { ascending: false }).limit(100);
       if (filtroPed === 'andamento') q = q.in('status', ANDAMENTO);
-      else if (filtroPed === 'concluido' || filtroPed === 'cancelado') q = q.eq('status', filtroPed);
+      else if (filtroPed === 'entregue' || filtroPed === 'cancelado') q = q.eq('status', filtroPed);
       else if (filtroPed === 'hoje') { const d = new Date(); d.setHours(0, 0, 0, 0); q = q.gte('criado_em', d.toISOString()); }
       const { data, error } = await q;
       if (error) return erro(lista, error);
@@ -302,11 +319,17 @@
       if (f) { filtroPed = f.dataset.filtro; $$('[data-filtro]', el).forEach(b => b.classList.toggle('on', b === f)); return carregarLista(); }
       const st = e.target.closest('[data-status]');
       if (st) {
-        if (st.dataset.status === 'cancelado' && !confirm('Cancelar este pedido?')) return;
+        const novo = st.dataset.status;
+        let motivo = '';
+        if (novo === 'cancelado') {
+          motivo = prompt('Motivo do cancelamento (o cliente vê esta mensagem):', '');
+          if (motivo === null) return;
+        }
+        if (novo === 'pagamento_aprovado' && !confirm(`Confirma que o PIX de ${st.dataset.valor} já caiu na conta da loja?`)) return;
         st.disabled = true;
-        const { error } = await sb.from('pedidos').update({ status: st.dataset.status }).eq('id', st.dataset.id);
+        const { data: r, error } = await sb.rpc('mudar_status_pedido', { p_pedido: Number(st.dataset.id), p_status: novo, p_motivo: motivo.trim() });
         if (error) { st.disabled = false; return ok(PNC.traduzErro(error.message)); }
-        ok('Status atualizado: ' + PNC.STATUS[st.dataset.status]);
+        ok('Pedido atualizado: ' + PNC.STATUS[(r && r.status) || novo]);
         carregarLista();
       }
       const rc = e.target.closest('[data-enviar-recado]');
@@ -334,20 +357,19 @@
   }
 
   function cartaoPedido(p, itens) {
-    const passos = PNC.passos(p.tipo);
-    const i = passos.indexOf(p.status);
-    const proximo = i >= 0 && i < passos.length - 1 ? passos[i + 1] : null;
-    const fim = p.status === 'concluido' || p.status === 'cancelado';
-    const msgZap = `Olá, ${p.cliente_nome.split(' ')[0]}! Seu pedido #${p.codigo} no ${E.config.nome_loja || 'Pão na Chapa'}: ${PNC.STATUS[p.status]}.`;
+    const fim = PNC.FINAIS.includes(p.status);
+    const rotulo = PNC.rotuloStatus(p.status, p.tipo);
+    const msgZap = `Olá, ${p.cliente_nome.split(' ')[0]}! Seu pedido #${p.codigo} no ${E.config.nome_loja || 'Pão na Chapa'}: ${rotulo}.`;
     return `<article class="card-ped st-${p.status}">
-      <header><div><strong>#${esc(p.codigo)}</strong><small>${PNC.dataHora(p.criado_em)}</small></div><span class="${p.status === 'cancelado' ? 'st cancelado' : p.status === 'concluido' ? 'st feito' : 'st andamento'}">${PNC.STATUS[p.status]}</span></header>
+      <header><div><strong>#${esc(p.codigo)}</strong><small>${PNC.dataHora(p.criado_em)}</small></div><span class="${PNC.corStatus(p.status)}">${rotulo}</span></header>
       <div class="cp-cliente"><b>${esc(p.cliente_nome)}</b><a href="${PNC.linkWhats(p.cliente_telefone.length <= 11 ? '55' + PNC.soNumeros(p.cliente_telefone) : p.cliente_telefone, msgZap)}" target="_blank" rel="noopener">${I.whats} ${esc(p.cliente_telefone)}</a>${p.cliente_email ? `<small>${esc(p.cliente_email)}</small>` : ''}</div>
       <div class="cp-tipo ${p.tipo}">${p.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'}${p.endereco ? `<p>${esc(PNC.textoEndereco(p.endereco))}</p>` : ''}</div>
       <ul class="cp-itens">${itens.map(it => `<li><span><b>${it.quantidade}×</b> ${esc(it.nome)}${it.tamanho ? ' (' + esc(it.tamanho) + ')' : ''}${PNC.detalhesItem(it.adicionais, it.removidos, it.observacao)}</span><span>${brl(it.total)}</span></li>`).join('')}</ul>
       ${p.observacoes ? `<p class="cp-obs"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
       <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}</span><strong>${brl(p.total)}</strong></div>
       <p class="cp-pag">${PNC.PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) + ' (devolver ' + brl(p.troco_para - p.total) + ')' : ''}</p>
-      ${fim ? '' : `<div class="cp-acoes">${proximo ? `<button type="button" class="btn amarelo" data-status="${proximo}" data-id="${p.id}">${proximo === 'concluido' ? 'Concluir pedido' : 'Marcar: ' + PNC.STATUS[proximo]}</button>` : ''}<button type="button" class="btn-texto" data-status="cancelado" data-id="${p.id}">Cancelar</button></div>
+      ${p.status === 'cancelado' && p.cancelado_motivo ? `<p class="cp-obs">Cancelado: ${esc(p.cancelado_motivo)}</p>` : ''}
+      ${fim ? '' : `<div class="cp-acoes">${acoesAdmin(p).map(a => `<button type="button" class="btn amarelo" data-status="${a[0]}" data-id="${p.id}" data-valor="${esc(brl(p.total))}">${a[1]}</button>`).join('')}<button type="button" class="btn-texto" data-status="cancelado" data-id="${p.id}">Cancelar</button></div>
       <div class="cp-recado"><textarea class="campo" rows="2" data-recado="${p.id}" placeholder="Recado para o cliente (aparece no acompanhamento do pedido)">${esc(p.mensagem_cliente)}</textarea><button type="button" class="btn linha pequeno" data-enviar-recado="${p.id}">Enviar recado</button></div>`}
     </article>`;
   }
