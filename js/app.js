@@ -2,7 +2,7 @@
    PÃO NA CHAPA · Site
    Rotas (#inicio, #cardapio, #categoria/slug, #explorar/slug, #novidades,
    #entrar, #criar-conta, #recuperar-senha, #nova-senha, #conta, #pedido/id,
-   #carrinho, #checkout, #admin), janela do produto, busca, login e pedidos.
+   #carrinho, #checkout, #admin, #cozinha), janela do produto, busca, login e pedidos.
 ===================================================================== */
 (function () {
   const PNC = window.PNC, E = PNC.estado, sb = PNC.sb, esc = PNC.esc, brl = PNC.brl;
@@ -60,7 +60,7 @@
     let v = '';
     try { v = sessionStorage.getItem('pnc_volta') || ''; sessionStorage.removeItem('pnc_volta'); } catch (e) { }
     v = v.replace(/^#/, '');
-    if (!v || /^(entrar|criar-conta|recuperar-senha|nova-senha)/.test(v)) v = PNC.ehAdmin() ? 'admin' : 'conta';
+    if (!v || /^(entrar|criar-conta|recuperar-senha|nova-senha)/.test(v)) v = PNC.ehAdmin() ? 'admin' : PNC.papel() === 'cozinha' ? 'cozinha' : 'conta';
     location.hash === '#' + v ? render() : (location.hash = v);
   }
 
@@ -117,17 +117,32 @@
   }
   PNC.toast = toast;
 
+  /* status do pedido (as regras de quem muda cada um ficam no banco: mudar_status_pedido) */
   const STATUS = (PNC.STATUS = {
-    recebido: 'Pedido recebido',
-    em_preparo: 'Em preparo',
+    aguardando_confirmacao: 'Aguardando confirmação',
+    aguardando_pagamento: 'Aguardando pagamento',
+    pagamento_aprovado: 'Pagamento aprovado',
+    confirmado: 'Pedido confirmado',
+    em_preparo: 'Em preparação',
+    pronto: 'Pedido pronto',
+    aguardando_entregador: 'Aguardando entregador',
     saiu_entrega: 'Saiu para entrega',
-    pronto_retirada: 'Pronto para retirada',
-    concluido: 'Concluído',
+    entregue: 'Entregue',
     cancelado: 'Cancelado'
   });
-  PNC.passos = tipo => tipo === 'retirada'
-    ? ['recebido', 'em_preparo', 'pronto_retirada', 'concluido']
-    : ['recebido', 'em_preparo', 'saiu_entrega', 'concluido'];
+  PNC.FINAIS = ['entregue', 'cancelado'];
+  PNC.ANDAMENTO = Object.keys(STATUS).filter(s => !PNC.FINAIS.includes(s));
+  /* nome do status para mostrar (retirada termina em "Retirado") */
+  PNC.rotuloStatus = (s, tipo) => s === 'entregue' && tipo === 'retirada' ? 'Retirado' : s === 'pronto' && tipo === 'retirada' ? 'Pronto para retirada' : (STATUS[s] || s);
+  /* etapas que o cliente vê na linha do tempo */
+  PNC.passos = (tipo, pagamento) => [].concat(
+    ['aguardando_confirmacao'],
+    pagamento === 'pix' ? ['aguardando_pagamento', 'pagamento_aprovado'] : ['confirmado'],
+    ['em_preparo', 'pronto'],
+    tipo === 'entrega' ? ['aguardando_entregador', 'saiu_entrega'] : [],
+    ['entregue']
+  );
+  PNC.corStatus = s => s === 'cancelado' ? 'st cancelado' : s === 'entregue' ? 'st feito' : 'st andamento';
 
   const PAGAMENTO = (PNC.PAGAMENTO = { pix: 'PIX', dinheiro: 'Dinheiro', cartao: 'Cartão (na entrega/retirada)' });
 
@@ -501,7 +516,7 @@
   }
 
   /* ---------- MINHA CONTA ---------- */
-  const corStatus = s => s === 'cancelado' ? 'st cancelado' : s === 'concluido' ? 'st feito' : 'st andamento';
+  const corStatus = PNC.corStatus;
 
   P.conta = async function (params) {
     const aba = params[0] || 'pedidos';
@@ -510,7 +525,7 @@
     const papel = (S.perfil && S.perfil.papel) || 'cliente';
     const suspensa = !PNC.contaAtiva();
     app.innerHTML = `<section class="titulo-pag claro"><div class="caixa conta-topo"><div><p class="sobre">Minha conta</p><h1>Olá${nome ? ', ' + esc(nome.split(' ')[0]) : ''}</h1>${papel !== 'cliente' ? `<p class="conta-papel">Perfil: <span class="papel ${esc(papel)}">${esc(PNC.PAPEIS[papel] || papel)}</span></p>` : ''}</div>
-      <div class="conta-acoes">${PNC.ehAdmin() ? '<a class="btn escuro" href="#admin">Painel administrativo</a>' : ''}<button class="btn linha" type="button" data-sair>Sair da conta</button></div></div></section>
+      <div class="conta-acoes">${PNC.ehAdmin() ? '<a class="btn escuro" href="#admin">Painel administrativo</a>' : ''}${PNC.ehAdmin() || PNC.papel() === 'cozinha' ? '<a class="btn escuro" href="#cozinha">Painel da cozinha</a>' : ''}<button class="btn linha" type="button" data-sair>Sair da conta</button></div></div></section>
       ${suspensa ? `<div class="caixa"><p class="msg erro conta-aviso">Sua conta está suspensa${S.perfil.suspenso_motivo ? ' (' + esc(S.perfil.suspenso_motivo) + ')' : ''}. Você continua vendo seus pedidos, mas não pode fazer novos. Fale com a hamburgueria.</p></div>` : ''}
       <nav class="abas"><div class="caixa abas-in">${abas.map(a => `<a href="#conta/${a[0]}" class="${a[0] === aba ? 'on' : ''}">${a[1]}</a>`).join('')}</div></nav>
       <section class="secao curta"><div class="caixa" id="contaCorpo"><p class="carregando">Carregando...</p></div></section>`;
@@ -521,7 +536,7 @@
       if (error) { corpo.innerHTML = vazio('Não foi possível carregar', traduzErro(error.message)); return; }
       corpo.innerHTML = data.length ? `<div class="lista-pedidos">${data.map(p => `<a class="linha-pedido" href="#pedido/${p.id}">
           <span><strong>Pedido #${esc(p.codigo)}</strong><small>${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</small></span>
-          <span class="${corStatus(p.status)}">${STATUS[p.status]}</span><b>${brl(p.total)}</b>${ICON.seta}</a>`).join('')}</div>`
+          <span class="${corStatus(p.status)}">${PNC.rotuloStatus(p.status, p.tipo)}</span><b>${brl(p.total)}</b>${ICON.seta}</a>`).join('')}</div>`
         : vazio('Você ainda não fez pedidos', 'Quando fizer, você acompanha tudo por aqui.', '<a class="btn amarelo" href="#cardapio">Ver cardápio</a>');
     }
 
@@ -592,10 +607,12 @@
       if (location.hash.indexOf('#pedido/' + id) !== 0) return;
       if (error || !p) { app.innerHTML = `<section class="secao"><div class="caixa">${vazio('Pedido não encontrado', '', '<a class="btn escuro" href="#conta">Meus pedidos</a>')}</div></section>`; return; }
 
-      const passos = PNC.passos(p.tipo);
+      const passos = PNC.passos(p.tipo, p.pagamento);
       const atual = passos.indexOf(p.status);
       const c = E.config;
       const recados = (ev || []).filter(e => e.mensagem);
+      const podeCancelar = ['aguardando_confirmacao', 'aguardando_pagamento'].includes(p.status) && S.user && p.usuario_id === S.user.id;
+      const pixPendente = p.pagamento === 'pix' && ['aguardando_confirmacao', 'aguardando_pagamento'].includes(p.status);
 
       app.innerHTML = `<section class="titulo-pag claro"><div class="caixa">
           <a class="voltar escuro" href="#conta">${ICON.voltar} Meus pedidos</a>
@@ -603,14 +620,17 @@
           <h1>Pedido #${esc(p.codigo)}</h1><p class="sub">${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada no balcão'}</p></div></section>
         <section class="secao curta"><div class="caixa pedido-grid">
           <div>
-            ${p.status === 'cancelado' ? '<div class="cancelado-box">Este pedido foi cancelado.</div>' : `<ol class="linha-tempo">${passos.map((s, i) => {
-        const e = (ev || []).filter(x => x.status === s).pop();
-        return `<li class="${i < atual ? 'feito' : i === atual ? 'agora' : ''}"><i></i><div><strong>${STATUS[s]}</strong>${e && i <= atual ? `<small>${dataHora(e.criado_em)}</small>` : ''}</div></li>`;
+            ${p.status === 'cancelado' ? `<div class="cancelado-box">Este pedido foi cancelado.${p.cancelado_motivo ? `<small>${esc(p.cancelado_motivo)}</small>` : ''}</div>` : `<ol class="linha-tempo">${passos.map((s, i) => {
+        const e = (ev || []).filter(x => x.status === s && !x.mensagem).pop();
+        const final = p.status === 'entregue';
+        return `<li class="${i < atual || (final && i === atual) ? 'feito' : i === atual ? 'agora' : ''}"${i === atual ? ' aria-current="step"' : ''}><i></i><div><strong>${PNC.rotuloStatus(s, p.tipo)}</strong>${e && i <= atual ? `<small>${dataHora(e.criado_em)}</small>` : ''}</div></li>`;
       }).join('')}</ol>`}
             ${p.mensagem_cliente ? `<div class="recado"><small>Mensagem da hamburgueria</small><p>${esc(p.mensagem_cliente)}</p></div>` : ''}
             ${recados.length > 1 ? `<details class="historico"><summary>Histórico de mensagens</summary>${recados.map(r => `<p><small>${dataHora(r.criado_em)}</small> ${esc(r.mensagem)}</p>`).join('')}</details>` : ''}
-            ${p.pagamento === 'pix' && c.chave_pix && p.status !== 'cancelado' ? `<div class="pix-box"><small>Pagamento via PIX</small><p>Chave PIX: <b>${esc(c.chave_pix)}</b></p><button class="btn linha" type="button" data-copiar="${esc(c.chave_pix)}">Copiar chave</button><p class="sm">Depois de pagar, envie o comprovante pelo WhatsApp.</p></div>` : ''}
-            ${c.whatsapp ? `<a class="btn verde" href="${linkWhats(c.whatsapp, mensagemPedido(p, itens || []))}" target="_blank" rel="noopener">${ICON.whats} Enviar resumo pelo WhatsApp</a>` : ''}
+            ${pixPendente && c.chave_pix ? `<div class="pix-box"><small>Pagamento via PIX</small><p>Valor: <b>${brl(p.total)}</b></p><p>Chave PIX: <b>${esc(c.chave_pix)}</b></p><button class="btn linha" type="button" data-copiar="${esc(c.chave_pix)}">Copiar chave</button><p class="sm">Depois de pagar, envie o comprovante pelo WhatsApp. O pedido vai para a cozinha quando a loja confirmar o pagamento.</p></div>` : ''}
+            ${p.pagamento === 'pix' && PNC.passos(p.tipo, p.pagamento).indexOf(p.status) >= 2 ? '<p class="msg ok">Pagamento PIX confirmado pela loja.</p>' : ''}
+            <div class="pedido-acoes">${c.whatsapp ? `<a class="btn verde" href="${linkWhats(c.whatsapp, mensagemPedido(p, itens || []))}" target="_blank" rel="noopener">${ICON.whats} Enviar resumo pelo WhatsApp</a>` : ''}
+            ${podeCancelar ? `<button class="btn-texto" type="button" data-cancelar-pedido="${p.id}">Cancelar pedido</button>` : ''}</div>
           </div>
           <aside class="resumo">
             <h3>Itens</h3>
@@ -803,6 +823,7 @@
       btn.disabled = true;
       btn.textContent = 'Enviando...';
       msg('');
+      const chave = chavePedido();
       const { data, error } = await sb.rpc('criar_pedido', {
         p_itens: PNC.carrinho.paraPedido(),
         p_tipo: tipo,
@@ -811,7 +832,8 @@
         p_troco_para: troco && !isNaN(troco) ? troco : null,
         p_observacoes: $('#kObs').value.trim(),
         p_nome: nome,
-        p_telefone: tel
+        p_telefone: tel,
+        p_chave: chave
       });
       if (error) {
         btn.disabled = false;
@@ -824,14 +846,35 @@
         await sb.from('enderecos').insert({ apelido: endereco.apelido || 'Casa', rua: endereco.rua, numero: endereco.numero, complemento: endereco.complemento, bairro: endereco.bairro, cidade: endereco.cidade, referencia: endereco.referencia });
       }
       if (S.perfil && (!S.perfil.nome || !S.perfil.telefone)) await carregarPerfil();
+      try { sessionStorage.removeItem('pnc_chave'); } catch (er) { }
       PNC.carrinho.limpar();
       location.hash = 'pedido/' + data.id + '/novo';
     });
   };
 
+  /* mesma tentativa de pedido = mesma chave (o banco não cria o pedido duas vezes).
+     A chave muda quando o carrinho muda ou depois que o pedido é criado. */
+  function chavePedido() {
+    const assinatura = JSON.stringify(PNC.carrinho.paraPedido());
+    let salvo = null;
+    try { salvo = JSON.parse(sessionStorage.getItem('pnc_chave') || 'null'); } catch (e) { }
+    if (salvo && salvo.a === assinatura && salvo.c) return salvo.c;
+    const nova = (crypto.randomUUID && crypto.randomUUID()) || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => {
+      const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+      return (ch === 'x' ? r : (r & 3) | 8).toString(16);
+    });
+    try { sessionStorage.setItem('pnc_chave', JSON.stringify({ a: assinatura, c: nova })); } catch (e) { }
+    return nova;
+  }
+
   /* ---------- ADMIN ---------- */
   P.admin = function (params) {
     if (PNC.admin) PNC.admin.render(app, params);
+  };
+
+  /* ---------- COZINHA ---------- */
+  P.cozinha = function () {
+    if (PNC.cozinha) PNC.cozinha.render(app);
   };
 
   /* ===================================================================
@@ -1009,7 +1052,7 @@
      CLIQUES E FORMULÁRIOS (delegação)
   =================================================================== */
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-apagar-end],[data-copiar],[data-rolar]');
+    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-apagar-end],[data-copiar],[data-rolar],[data-cancelar-pedido]');
     if (!t) return;
     const d = t.dataset;
 
@@ -1032,6 +1075,14 @@
     }
     else if (d.apagarEnd) { if (confirm('Remover este endereço?')) { await sb.from('enderecos').delete().eq('id', d.apagarEnd); render(); } }
     else if (d.copiar) { try { await navigator.clipboard.writeText(d.copiar); toast('Chave PIX copiada.'); } catch (er) { toast(d.copiar); } }
+    else if (d.cancelarPedido) {
+      if (!confirm('Cancelar este pedido?')) return;
+      t.disabled = true;
+      const { error } = await sb.rpc('mudar_status_pedido', { p_pedido: Number(d.cancelarPedido), p_status: 'cancelado', p_motivo: '' });
+      if (error) { t.disabled = false; return toast(traduzErro(error.message)); }
+      toast('Pedido cancelado.');
+      render();
+    }
     else if (d.rolar) { const tr = t.closest('.secao').querySelector('.trilho'); tr.scrollBy({ left: Number(d.rolar) * tr.clientWidth * 0.8, behavior: 'smooth' }); }
   });
 
@@ -1076,7 +1127,8 @@
     checkout: 'Entre ou crie sua conta para finalizar o pedido. Seu carrinho continua salvo.',
     conta: 'Entre para ver sua conta e seus pedidos.',
     pedido: 'Entre para acompanhar seu pedido.',
-    admin: 'Entre com a conta de administrador.'
+    admin: 'Entre com a conta de administrador.',
+    cozinha: 'Entre com a conta da cozinha.'
   };
 
   function rotaAtual() {
@@ -1095,6 +1147,7 @@
     if (canalPedido) { sb.removeChannel(canalPedido); canalPedido = null; }
     clearInterval(pollPedido);
     if (PNC.admin && PNC.admin.sair) PNC.admin.sair();
+    if (PNC.cozinha && PNC.cozinha.sair) PNC.cozinha.sair();
     fecharJanela();
 
     document.body.dataset.rota = r.nome;
@@ -1103,6 +1156,10 @@
       if (!sb) { app.innerHTML = `<section class="secao"><div class="caixa">${vazio('Em breve', 'Login e pedidos online serão ativados em breve.')}</div></section>`; return fim(r); }
       if (!S.pronto) { app.innerHTML = '<section class="secao"><div class="caixa"><p class="carregando">Carregando...</p></div></section>'; return fim(r); }
       if (!S.user) { pedirLogin(PRIVADAS[r.nome], location.hash); return; }
+      if (r.nome === 'cozinha' && !(PNC.ehAdmin() || PNC.papel() === 'cozinha')) {
+        app.innerHTML = `<section class="secao"><div class="caixa">${vazio('Acesso restrito', 'Esta área é só para a equipe da cozinha.', '<a class="btn escuro" href="#conta">Minha conta</a>')}</div></section>`;
+        return fim(r);
+      }
       if (r.nome === 'admin' && !PNC.ehAdmin()) {
         app.innerHTML = `<section class="secao"><div class="caixa">${vazio('Acesso restrito', 'Esta área é só para administradores da hamburgueria.', '<a class="btn escuro" href="#conta">Minha conta</a>')}</div></section>`;
         return fim(r);
@@ -1127,7 +1184,7 @@
     ligarVideos(app);
     atualizarTopo();
     montarRodape();
-    document.title = ({ inicio: 'Pão na Chapa · Hamburgueria', cardapio: 'Cardápio · Pão na Chapa', carrinho: 'Carrinho · Pão na Chapa', checkout: 'Finalizar pedido · Pão na Chapa', conta: 'Minha conta · Pão na Chapa', entrar: 'Entrar · Pão na Chapa', 'criar-conta': 'Criar conta · Pão na Chapa', admin: 'Painel · Pão na Chapa' })[r.nome] || 'Pão na Chapa';
+    document.title = ({ inicio: 'Pão na Chapa · Hamburgueria', cardapio: 'Cardápio · Pão na Chapa', carrinho: 'Carrinho · Pão na Chapa', checkout: 'Finalizar pedido · Pão na Chapa', conta: 'Minha conta · Pão na Chapa', entrar: 'Entrar · Pão na Chapa', 'criar-conta': 'Criar conta · Pão na Chapa', admin: 'Painel · Pão na Chapa', cozinha: 'Cozinha · Pão na Chapa' })[r.nome] || 'Pão na Chapa';
   }
 
   addEventListener('hashchange', render);
