@@ -4646,6 +4646,21 @@ body[data-rota="cozinha"] .rodape {
   justify-self: start
 }
 
+.ent-ler-qr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%
+}
+
+.ent-ler-qr svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none
+}
+
 .ent-hoje {
   list-style: none;
   margin: 0;
@@ -4806,6 +4821,11 @@ body[data-rota="cozinha"] .rodape {
   display: grid;
   gap: 12px;
   padding: 22px
+}
+
+.ent-leitor h2 {
+  padding-right: 48px;
+  font-size: clamp(1.6rem, 6vw, 2.2rem)
 }
 
 .ent-leitor video {

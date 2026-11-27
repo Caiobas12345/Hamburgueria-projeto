@@ -149,13 +149,13 @@
       ${!saiu ? `<div class="ent-acoes"><button type="button" class="btn amarelo largo" data-ent-sair="${Number(p.id)}">Saí para entrega</button>
           <button type="button" class="btn-texto" data-ent-devolver="${Number(p.id)}">Devolver entrega</button></div>`
         : p.bloqueado ? '<p class="msg erro">Muitos códigos errados. Peça para a loja confirmar esta entrega.</p>'
-        : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
+          : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
             <label for="cod${Number(p.id)}">Código de entrega <small>Peça ao cliente os 4 números que aparecem no pedido dele.</small></label>
             <div class="ent-codigo-linha">
               <input class="campo" id="cod${Number(p.id)}" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required>
               <button class="btn escuro" type="submit">Confirmar entrega</button>
             </div>
-            ${'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? `<button type="button" class="btn-texto" data-ent-ler="${Number(p.id)}">Ler QR code do cliente</button>` : ''}
+            ${podeLerQr() ? `<button type="button" class="btn linha ent-ler-qr" data-ent-ler="${Number(p.id)}">${ICONE_QR} Ler QR code do cliente</button>` : ''}
             <p class="msg erro" hidden></p>
           </form>`}
     </article>`;
@@ -327,8 +327,60 @@
   }
 
   /* ===================================================================
-     LEITOR DE QR (só em navegadores com BarcodeDetector, como o Chrome no Android)
+     LEITOR DE QR
+     Usa o leitor do próprio navegador quando existe (Chrome no Android e no Mac).
+     Nos outros (iPhone, Chrome/Edge no Windows) carrega o leitor jsQR na hora,
+     só quando o entregador toca no botão. A câmera precisa de HTTPS (a Vercel já usa).
   =================================================================== */
+  const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+  const ICONE_QR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></svg>';
+  let jsqrCarregando = null;
+
+  function podeLerQr() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext !== false);
+  }
+
+  function carregarJsQr() {
+    if (window.jsQR) return Promise.resolve();
+    if (!jsqrCarregando) {
+      jsqrCarregando = new Promise((ok, falha) => {
+        const s = document.createElement('script');
+        s.src = JSQR_URL;
+        s.async = true;
+        s.onload = () => window.jsQR ? ok() : falha(new Error('leitor indisponível'));
+        s.onerror = () => { jsqrCarregando = null; s.remove(); falha(new Error('leitor indisponível')); };
+        document.head.appendChild(s);
+      });
+    }
+    return jsqrCarregando;
+  }
+
+  /* devolve uma função que lê o QR de um quadro do vídeo (ou null se não achou) */
+  async function criarLeitor() {
+    if ('BarcodeDetector' in window) {
+      try {
+        const formatos = await window.BarcodeDetector.getSupportedFormats();
+        if (formatos.includes('qr_code')) {
+          const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+          return async v => { const a = await det.detect(v); return a[0] ? a[0].rawValue : null; };
+        }
+      } catch (e) { /* cai no jsQR */ }
+    }
+    await carregarJsQr();
+    const tela = document.createElement('canvas');
+    const ctx = tela.getContext('2d', { willReadFrequently: true });
+    return async v => {
+      const w = v.videoWidth, h = v.videoHeight;
+      if (!w || !h) return null;
+      const k = Math.min(1, 720 / Math.max(w, h));
+      tela.width = Math.round(w * k); tela.height = Math.round(h * k);
+      ctx.drawImage(v, 0, 0, tela.width, tela.height);
+      const img = ctx.getImageData(0, 0, tela.width, tela.height);
+      const r = window.jsQR(img.data, tela.width, tela.height, { inversionAttempts: 'dontInvert' });
+      return r ? r.data : null;
+    };
+  }
+
   async function abrirLeitor(id) {
     const form = $(`[data-ent-confirmar="${id}"]`);
     if (!form) return;
@@ -342,14 +394,19 @@
       if (!video) { stream.getTracks().forEach(t => t.stop()); return; }
       video.srcObject = stream;
       await video.play();
-      const det = new window.BarcodeDetector({ formats: ['qr_code'] });
       leitor = { stream, timer: 0 };
+      let ler;
+      try { ler = await criarLeitor(); } catch (e) {
+        fecharLeitor();
+        const msg = $('#entLeitorMsg');
+        if (msg) msg.textContent = 'Não foi possível carregar o leitor de QR. Verifique a internet ou digite o código que o cliente informar.';
+        return;
+      }
       const procurar = async () => {
         if (!leitor || !$('#entVideo')) return fecharLeitor();
         try {
-          const achados = await det.detect(video);
-          const val = achados[0] && achados[0].rawValue;
-          const m = val && val.match(/^PNC:([A-Z0-9]+):(\d{4})$/);
+          const val = await ler(video);
+          const m = val && String(val).trim().match(/^PNC:([A-Z0-9]+):(\d{4})$/);
           if (m) {
             if (m[1] !== form.dataset.codigo) { $('#entLeitorMsg').textContent = `Este QR é do pedido #${m[1]}, não do #${form.dataset.codigo}.`; }
             else {
@@ -364,15 +421,18 @@
       };
       procurar();
     } catch (er) {
+      fecharLeitor();
       const msg = $('#entLeitorMsg');
-      if (msg) msg.textContent = 'Não foi possível abrir a câmera. Digite o código que o cliente informar.';
+      if (msg) msg.textContent = er && er.name === 'NotAllowedError'
+        ? 'A câmera foi bloqueada. Libere a câmera para este site nas configurações do navegador ou digite o código.'
+        : 'Não foi possível abrir a câmera. Digite o código que o cliente informar.';
     }
   }
 
   function fecharLeitor() {
     if (!leitor) return;
     clearTimeout(leitor.timer);
-    leitor.stream.getTracks().forEach(t => t.stop());
+    if (leitor.stream) leitor.stream.getTracks().forEach(t => t.stop());
     leitor = null;
   }
 
