@@ -308,6 +308,11 @@
         const { data: it } = await sb.from('pedido_itens').select('*').in('pedido_id', ids).order('id');
         (it || []).forEach(i => (itens[i.pedido_id] = itens[i.pedido_id] || []).push(i));
       }
+      const idsEnt = [...new Set(data.map(p => p.entregador_id).filter(Boolean))];
+      if (idsEnt.length) {
+        const { data: ents } = await sb.from('perfis').select('id, nome').in('id', idsEnt);
+        (ents || []).forEach(u => { nomesEnt[u.id] = u.nome; });
+      }
       const abertos = $$('textarea[data-recado]', lista).filter(t => t === document.activeElement || t.value !== t.defaultValue);
       if (abertos.length) return;   /* não apaga um recado que o admin está digitando */
       lista.innerHTML = data.length ? `<div class="cards-ped">${data.map(p => cartaoPedido(p, itens[p.id] || [])).join('')}</div>` : '<p class="aviso-vazio">Nenhum pedido aqui.</p>';
@@ -356,6 +361,8 @@
     aoSair(() => { if (canal) sb.removeChannel(canal); clearInterval(intervalo); clearTimeout(t); });
   }
 
+  const nomesEnt = {};
+
   function cartaoPedido(p, itens) {
     const fim = PNC.FINAIS.includes(p.status);
     const rotulo = PNC.rotuloStatus(p.status, p.tipo);
@@ -366,6 +373,7 @@
       <div class="cp-tipo ${p.tipo}">${p.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'}${p.endereco ? `<p>${esc(PNC.textoEndereco(p.endereco))}</p>` : ''}</div>
       <ul class="cp-itens">${itens.map(it => `<li><span><b>${it.quantidade}×</b> ${esc(it.nome)}${it.tamanho ? ' (' + esc(it.tamanho) + ')' : ''}${PNC.detalhesItem(it.adicionais, it.removidos, it.observacao)}</span><span>${brl(it.total)}</span></li>`).join('')}</ul>
       ${p.observacoes ? `<p class="cp-obs"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
+      ${p.tipo === 'entrega' && p.entregador_id ? `<p class="cp-ent">Entregador: <b>${esc(nomesEnt[p.entregador_id] || '—')}</b>${p.tentativas_codigo >= 5 ? ' · <span class="cp-alerta">código errado 5 vezes: confirme a entrega com o cliente</span>' : ''}</p>` : ''}
       <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}</span><strong>${brl(p.total)}</strong></div>
       <p class="cp-pag">${PNC.PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) + ' (devolver ' + brl(p.troco_para - p.total) + ')' : ''}</p>
       ${p.status === 'cancelado' && p.cancelado_motivo ? `<p class="cp-obs">Cancelado: ${esc(p.cancelado_motivo)}</p>` : ''}
@@ -658,12 +666,12 @@
     entregador: 'Recebe acesso às entregas da hamburgueria.',
     cozinha: 'Recebe acesso aos pedidos da cozinha.'
   };
-  const ACAO = { papel: 'Perfil alterado', suspensao: 'Conta suspensa', reativacao: 'Conta reativada' };
+  const ACAO = { papel: 'Perfil alterado', suspensao: 'Conta suspensa', reativacao: 'Conta reativada', curso_adicionado: 'Curso adicionado', curso_removido: 'Curso removido' };
   const filtroUsu = { busca: '', papel: '', situacao: '', aba: 'lista' };
   const dataCurta = d => d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
   const seloPapel = p => `<span class="papel ${esc(p)}">${esc(PAPEIS[p] || p)}</span>`;
   const seloSituacao = u => u.ativo ? '<span class="st feito">Ativa</span>' : '<span class="st cancelado">Suspensa</span>';
-  const valorAuditoria = (acao, v) => acao === 'papel' ? (PAPEIS[v] || v) : v === 'ativa' ? 'Ativa' : v === 'suspensa' ? 'Suspensa' : v;
+  const valorAuditoria = (acao, v) => !v ? '—' : acao === 'papel' ? (PAPEIS[v] || v) : v === 'ativa' ? 'Ativa' : v === 'suspensa' ? 'Suspensa' : v;
 
   async function usuarios(el) {
     const meuId = PNC.sessao.user && PNC.sessao.user.id;
@@ -784,6 +792,7 @@
           <dt>Situação</dt><dd>${seloSituacao(u)}${!u.ativo && u.suspenso_motivo ? `<small class="det-motivo">Motivo: ${esc(u.suspenso_motivo)}</small>` : ''}</dd>
           <dt>Pedidos</dt><dd>${u.pedidos || 0}${u.ultimo_pedido ? ` · último em ${dataCurta(u.ultimo_pedido)}` : ''}</dd>
         </dl>
+        ${u.papel === 'entregador' ? '<section class="det-sec" id="detEnt"><h3>Perfil de entregador</h3><p class="carregando">Carregando...</p></section>' : ''}
         <section class="det-sec"><h3>Últimos pedidos</h3>${(peds.data || []).length ? `<ul class="det-lista">${peds.data.map(p => `<li><span><b>#${esc(p.codigo)}</b><small>${PNC.dataHora(p.criado_em)} · ${PNC.STATUS[p.status] || esc(p.status)}</small></span><b>${brl(p.total)}</b></li>`).join('')}</ul>` : '<p class="sm">Nenhum pedido ainda.</p>'}</section>
         <section class="det-sec"><h3>Histórico de alterações</h3>${(hist.data || []).length ? `<ul class="det-lista">${hist.data.map(h => `<li><span><b>${ACAO[h.acao] || esc(h.acao)}: ${esc(valorAuditoria(h.acao, h.valor_anterior))} → ${esc(valorAuditoria(h.acao, h.valor_novo))}</b><small>${PNC.dataHora(h.criado_em)} · por ${esc(h.alterado_por_nome || '—')}${h.motivo ? ' · ' + esc(h.motivo) : ''}</small></span></li>`).join('')}</ul>` : '<p class="sm">Nenhuma alteração registrada.</p>'}</section>
         ${podeSuspender ? `<section class="det-sec zona-risco"><h3>${u.ativo ? 'Suspender conta' : 'Reativar conta'}</h3>
@@ -791,6 +800,7 @@
           <label class="cp"><span>Motivo${u.ativo ? ' (obrigatório)' : ' (opcional)'}</span><input class="campo" id="motivoSusp" maxlength="300"></label>
           <p class="msg erro" id="suspMsg" hidden></p>
           <button type="button" class="btn ${u.ativo ? 'perigo' : 'escuro'}" id="btnSusp">${u.ativo ? 'Suspender conta' : 'Reativar conta'}</button></section>` : ''}`;
+      if (u.papel === 'entregador') montarEntregador(u);
       const btn = $('#btnSusp');
       if (!btn) return;
       btn.addEventListener('click', async () => {
@@ -806,6 +816,49 @@
         ok(u.ativo ? 'Conta suspensa.' : 'Conta reativada.');
         carregar();
       });
+    };
+
+    /* perfil de entregador: o admin vê tudo e cadastra os cursos */
+    const montarEntregador = async u => {
+      const alvo = $('#detEnt');
+      if (!alvo) return;
+      const { data: e, error } = await sb.rpc('admin_entregador_perfil', { p_usuario: u.id });
+      if (!$('#detEnt')) return;
+      if (error) return erro(alvo, error);
+      const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      alvo.innerHTML = `<h3>Perfil de entregador</h3>
+        <div class="det-ent">${PNC.cartaoEntregador ? PNC.cartaoEntregador(e, 'Perfil público') : ''}</div>
+        <p class="sm">${e.veiculo_placa ? `Placa: <b>${esc(e.veiculo_placa)}</b> · ${e.mostrar_placa ? 'aparece para o cliente' : 'escondida do cliente'}. ` : ''}O cliente vê só o primeiro nome. Foto, "sobre mim" e veículo são preenchidos pelo entregador.</p>
+        <h4>Cursos</h4>
+        ${(e.cursos || []).length ? `<ul class="det-lista">${e.cursos.map(c => `<li><span><b>${esc(c.nome)}</b><small>${[c.instituicao, c.concluido_em ? 'concluído em ' + dataCurta(c.concluido_em + 'T12:00:00') : ''].filter(Boolean).map(esc).join(' · ') || 'Sem detalhes'}</small></span><button type="button" class="btn-texto" data-remover-curso="${Number(c.id)}" data-nome-curso="${esc(c.nome)}">Remover</button></li>`).join('')}</ul>` : '<p class="sm">Nenhum curso cadastrado.</p>'}
+        <form class="det-curso" id="formCurso" novalidate>
+          <label class="cp"><span>Nome do curso</span><input class="campo" name="nome" maxlength="120" required placeholder="Como está no certificado"></label>
+          <label class="cp"><span>Instituição (opcional)</span><input class="campo" name="instituicao" maxlength="120"></label>
+          <label class="cp"><span>Concluído em (opcional)</span><input class="campo" name="data" type="date" max="${hoje}"></label>
+          <p class="msg erro" id="cursoMsg" hidden></p>
+          <button class="btn escuro" type="submit">Adicionar curso</button>
+        </form>`;
+      const msg = t => { const m = $('#cursoMsg'); if (m) { m.textContent = t; m.hidden = !t; } };
+      $('#formCurso').addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const f = ev.target;
+        if (f.nome.value.trim().length < 2) return msg('Informe o nome do curso.');
+        const b = f.querySelector('[type=submit]');
+        b.disabled = true;
+        const { error: er } = await sb.rpc('admin_adicionar_curso', { p_usuario: u.id, p_nome: f.nome.value.trim(), p_instituicao: f.instituicao.value.trim(), p_concluido_em: f.data.value || null });
+        b.disabled = false;
+        if (er) return msg(PNC.traduzErro(er.message));
+        ok('Curso adicionado.');
+        montarEntregador(u);
+      });
+      alvo.querySelectorAll('[data-remover-curso]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm(`Remover o curso "${b.dataset.nomeCurso}"?`)) return;
+        b.disabled = true;
+        const { error: er } = await sb.rpc('admin_remover_curso', { p_curso: Number(b.dataset.removerCurso) });
+        if (er) { b.disabled = false; return msg(PNC.traduzErro(er.message)); }
+        ok('Curso removido.');
+        montarEntregador(u);
+      }));
     };
 
     el.onclick = e => {

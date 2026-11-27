@@ -34,7 +34,7 @@
   }
 
   function situacao(p) {
-    if (p.status === 'aguardando_entregador') return 'Aguardando entregador';
+    if (p.status === 'aguardando_entregador') return p.entregador ? esc(p.entregador) + ' vem buscar' : 'Aguardando entregador';
     if (p.status === 'pronto' && p.tipo === 'retirada') return 'Aguardando o cliente no balcão';
     return '';
   }

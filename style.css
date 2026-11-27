@@ -1178,6 +1178,12 @@ body[data-rota="explorar"] main {
   opacity: .7
 }
 
+img.ent-pub-foto,
+img.ent-foto {
+  color: transparent;
+  font-size: 0
+}
+
 .sem-foto {
   position: absolute;
   inset: 0;
@@ -4269,4 +4275,629 @@ body[data-rota="cozinha"] .rodape {
   background: var(--preto);
   border-color: var(--preto);
   color: var(--amarelo)
+}
+
+/* =====================================================================
+   ETAPA 3 · ENTREGADOR
+===================================================================== */
+
+/* código de entrega na página do pedido (cliente) */
+.codigo-entrega {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff
+}
+
+.codigo-entrega small {
+  display: block;
+  font: 700 .68rem var(--texto);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--amarelo)
+}
+
+.codigo-num {
+  margin: 4px 0 6px;
+  font: 800 3.4rem/1 var(--titulo);
+  letter-spacing: .22em;
+  color: #fff
+}
+
+.codigo-entrega .sm {
+  color: rgba(255, 255, 255, .72);
+  max-width: 34ch
+}
+
+.qr rect {
+  fill: #fff;
+  stroke: none
+}
+
+.qr path {
+  fill: #111;
+  stroke: none
+}
+
+.codigo-entrega .qr {
+  flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
+  border-radius: var(--raio)
+}
+
+/* cartão público do entregador */
+.ent-publico {
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ent-publico .sobre {
+  margin-bottom: 12px
+}
+
+.ent-pub-topo {
+  display: flex;
+  align-items: center;
+  gap: 16px
+}
+
+.ent-pub-topo h3 {
+  font-size: 1.7rem;
+  line-height: 1.05
+}
+
+.ent-pub-foto,
+.ent-foto {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--amarelo);
+  background: var(--creme2)
+}
+
+.sem-foto {
+  background: var(--preto);
+  color: var(--amarelo);
+  font: 800 1.5rem/1 var(--titulo)
+}
+
+.ent-veic {
+  margin-top: 4px;
+  color: var(--cinza);
+  font-size: .92rem
+}
+
+.ent-numeros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 16px 0 0;
+  border-top: 1px solid var(--linha);
+  border-bottom: 1px solid var(--linha)
+}
+
+.ent-numeros div {
+  padding: 12px 8px;
+  text-align: center
+}
+
+.ent-numeros div+div {
+  border-left: 1px solid var(--linha)
+}
+
+.ent-numeros dt {
+  color: var(--cinza);
+  font-size: .76rem
+}
+
+.ent-numeros dd {
+  margin: 2px 0 0;
+  font: 800 1.35rem/1.1 var(--titulo)
+}
+
+.ent-sobre {
+  margin-top: 14px;
+  line-height: 1.55
+}
+
+.ent-publico h4 {
+  margin: 16px 0 8px;
+  font: 700 .72rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--cinza)
+}
+
+.ent-cursos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px
+}
+
+.ent-cursos li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start
+}
+
+.ent-cursos svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--verde);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round
+}
+
+.ent-cursos b {
+  display: block;
+  line-height: 1.3
+}
+
+.ent-cursos small {
+  color: var(--cinza)
+}
+
+/* painel do entregador */
+.ent {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: clamp(24px, 3vw, 40px) var(--lado) 48px
+}
+
+.ent-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px
+}
+
+.ent-cab h1 {
+  font-size: clamp(2.4rem, 4vw, 3.4rem)
+}
+
+.ent-abas {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--creme2)
+}
+
+.ent-abas a {
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: .92rem;
+  color: var(--tinta)
+}
+
+.ent-abas a.on {
+  background: var(--preto);
+  color: var(--amarelo)
+}
+
+.ent-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .8fr);
+  gap: 16px;
+  align-items: start
+}
+
+.ent-col {
+  min-width: 0;
+  padding: 14px;
+  border-radius: var(--raio);
+  background: var(--creme2)
+}
+
+.ent-col h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 4px 14px;
+  font-size: 1.6rem
+}
+
+.ent-col h2 i {
+  min-width: 30px;
+  padding: 0 8px;
+  border-radius: 15px;
+  background: var(--preto);
+  color: var(--amarelo);
+  font: 800 .9rem/30px var(--texto);
+  font-style: normal;
+  text-align: center
+}
+
+#entMinhas,
+#entDisp {
+  display: grid;
+  gap: 12px
+}
+
+.ent-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--linha);
+  border-left: 4px solid var(--dourado);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ent-card.minha {
+  border-left-color: var(--amarelo)
+}
+
+.ent-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px
+}
+
+.ent-card header strong {
+  font: 800 1.9rem/1 var(--titulo)
+}
+
+.ent-bairro {
+  font-weight: 700
+}
+
+.ent-meta {
+  color: var(--cinza);
+  font-size: .9rem
+}
+
+.ent-cliente b {
+  font-size: 1.1rem
+}
+
+.ent-cliente p {
+  margin-top: 2px;
+  overflow-wrap: anywhere
+}
+
+.ent-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px
+}
+
+.ent-pagto {
+  padding: 10px 12px;
+  border-radius: var(--raio);
+  background: #FFF6D6;
+  font-weight: 700;
+  font-size: .95rem
+}
+
+.ent-pago {
+  color: var(--verde)
+}
+
+.ent-itens {
+  list-style: none;
+  margin: 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--linha);
+  display: grid;
+  gap: 4px;
+  font-size: .92rem
+}
+
+.ent-acoes {
+  display: grid;
+  gap: 8px;
+  justify-items: center
+}
+
+.ent-codigo {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--linha)
+}
+
+.ent-codigo label {
+  font-weight: 700
+}
+
+.ent-codigo label small {
+  display: block;
+  font-weight: 400;
+  color: var(--cinza)
+}
+
+.ent-codigo-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr);
+  gap: 8px
+}
+
+.ent-codigo input {
+  font: 800 1.7rem/1 var(--titulo);
+  letter-spacing: .3em;
+  text-align: center
+}
+
+.ent-codigo .btn-texto {
+  justify-self: start
+}
+
+.ent-hoje {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px
+}
+
+.ent-hoje li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  padding: 12px 14px;
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ent-hoje small {
+  grid-column: 1 / -1;
+  color: var(--cinza)
+}
+
+.ent-rodape {
+  margin: 12px 4px 0
+}
+
+/* meu perfil */
+.ent-perfil-cab {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff
+}
+
+.ent-perfil-cab h2 {
+  color: #fff;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.05
+}
+
+.ent-perfil-cab p {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, .75)
+}
+
+.ent-contagem b {
+  color: var(--amarelo);
+  font: 800 1.3rem var(--titulo)
+}
+
+.ent-foto-troca {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  cursor: pointer
+}
+
+.ent-foto-troca .ent-foto {
+  width: 104px;
+  height: 104px
+}
+
+.ent-foto-troca:focus-within .ent-foto {
+  outline: 3px solid #fff;
+  outline-offset: 2px
+}
+
+.ent-foto-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--amarelo);
+  color: var(--preto);
+  font-weight: 700;
+  font-size: .78rem
+}
+
+.ent-completo {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 16px 20px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ent-completo small {
+  display: block;
+  color: var(--cinza)
+}
+
+.ent-barra {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px
+}
+
+.ent-barra i {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--linha)
+}
+
+.ent-barra i.ok {
+  background: var(--amarelo)
+}
+
+.ent-perfil-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: clamp(20px, 3vw, 40px);
+  align-items: start
+}
+
+.ent-form {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ent-form h3 {
+  margin-top: 6px;
+  font-size: 1.4rem
+}
+
+.ent-form .btn.amarelo {
+  justify-self: start
+}
+
+.ent-form .check {
+  margin-top: 0
+}
+
+.ent-veic-campos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px
+}
+
+.ent-previa {
+  position: sticky;
+  top: calc(var(--topo-h) + 16px)
+}
+
+.ent-previa .sm {
+  margin-bottom: 10px
+}
+
+.ent-leitor {
+  display: grid;
+  gap: 12px;
+  padding: 22px
+}
+
+.ent-leitor video {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--raio);
+  background: var(--preto)
+}
+
+body[data-rota="entregador"] .rodape {
+  display: none
+}
+
+/* admin: entregador no pedido e cursos */
+.cp-ent {
+  font-size: .9rem
+}
+
+.cp-alerta {
+  color: var(--vermelho);
+  font-weight: 700
+}
+
+.det-ent .ent-publico {
+  margin: 0 0 10px;
+  background: var(--creme)
+}
+
+.det-sec h4 {
+  margin: 14px 0 6px;
+  font-size: 1.1rem
+}
+
+.det-curso {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  margin-top: 12px
+}
+
+.det-curso .msg,
+.det-curso .btn {
+  grid-column: 1 / -1;
+  justify-self: start
+}
+
+@media (max-width:1100px) {
+  .ent-grade {
+    grid-template-columns: 1fr
+  }
+}
+
+@media (max-width:820px) {
+  .ent-perfil-grade {
+    grid-template-columns: 1fr
+  }
+
+  .ent-previa {
+    position: static
+  }
+}
+
+@media (max-width:560px) {
+  .codigo-entrega {
+    flex-direction: column;
+    align-items: flex-start
+  }
+
+  .codigo-entrega .qr {
+    align-self: center;
+    width: 168px;
+    height: 168px
+  }
+
+  .ent-perfil-cab {
+    flex-direction: column;
+    text-align: center
+  }
+
+  .ent-veic-campos,
+  .det-curso {
+    grid-template-columns: 1fr
+  }
+
+  .ent-abas {
+    width: 100%
+  }
+
+  .ent-abas a {
+    flex: 1;
+    text-align: center
+  }
 }
