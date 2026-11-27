@@ -353,12 +353,11 @@
     /* tempo real: pedido novo toca um aviso; a lista se atualiza sozinha */
     let t = 0;
     const agendar = () => { clearTimeout(t); t = setTimeout(carregarLista, 400); };
-    const canal = sb.channel ? sb.channel('admin-pedidos')
+    const canal = PNC.canal('admin-pedidos', c => c
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, () => { bip(); ok('Novo pedido recebido!'); agendar(); })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, agendar)
-      .subscribe() : null;
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, agendar));
     const intervalo = setInterval(carregarLista, 20000);
-    aoSair(() => { if (canal) sb.removeChannel(canal); clearInterval(intervalo); clearTimeout(t); });
+    aoSair(() => { if (canal) { try { sb.removeChannel(canal); } catch (e) { } } clearInterval(intervalo); clearTimeout(t); });
   }
 
   const nomesEnt = {};
