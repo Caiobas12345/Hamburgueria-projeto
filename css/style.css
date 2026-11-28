@@ -6597,3 +6597,460 @@ body[data-rota="entregador"] .rodape {
     height: 240px
   }
 }
+
+/* =====================================================================
+   ANIMAÇÕES (modernização)
+   Só opacidade e posição (leve no celular). Com "reduzir movimento"
+   ligado, a regra global lá de cima desliga tudo isto.
+===================================================================== */
+:root {
+  --suave: cubic-bezier(.2, .7, .2, 1);
+  --mola: cubic-bezier(.34, 1.4, .5, 1)
+}
+
+/* ---------- troca de página ---------- */
+#app.pagina-entra {
+  animation: paginaEntra .32s var(--suave) backwards
+}
+
+@keyframes paginaEntra {
+  from {
+    opacity: 0;
+    transform: translateY(10px)
+  }
+}
+
+/* ---------- itens aparecendo durante a rolagem ---------- */
+.rv {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity .55s var(--suave), transform .6s var(--suave);
+  transition-delay: var(--rv-atraso, 0ms)
+}
+
+.rv.rv-on {
+  opacity: 1;
+  transform: none
+}
+
+/* cartões que têm transição própria: garante a da entrada */
+.pc.rv,
+.item.rv {
+  transition: opacity .55s var(--suave), transform .6s var(--suave);
+  transition-delay: var(--rv-atraso, 0ms)
+}
+
+/* ---------- botões ---------- */
+.btn:not(:disabled):active,
+.ic:active,
+.pc-add:active,
+.lp-repetir:active {
+  transform: scale(.96)
+}
+
+.btn.amarelo:not(:disabled):hover {
+  box-shadow: 0 10px 24px -10px rgba(245, 184, 0, .75);
+  transform: translateY(-1px)
+}
+
+.btn.escuro:not(:disabled):hover,
+.btn.verde:not(:disabled):hover {
+  transform: translateY(-1px)
+}
+
+.ic {
+  transition: background .2s, transform .2s var(--mola)
+}
+
+/* botão "Enviando..." */
+.btn.carregando {
+  opacity: 1 !important;
+  cursor: progress
+}
+
+.btn.carregando::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: gira .7s linear infinite
+}
+
+@keyframes gira {
+  to {
+    transform: rotate(360deg)
+  }
+}
+
+/* ---------- tela inicial ---------- */
+.hero-midia {
+  transform: translate3d(0, var(--hero-y, 0px), 0);
+  will-change: transform
+}
+
+.hero-midia>* {
+  animation: heroZoom 2.2s var(--suave) both
+}
+
+@keyframes heroZoom {
+  from {
+    transform: scale(1.08);
+    opacity: .4
+  }
+}
+
+.hero-txt>* {
+  animation: heroTexto .8s var(--suave) both
+}
+
+.hero-txt>*:nth-child(1) {
+  animation-delay: .15s
+}
+
+.hero-txt>*:nth-child(2) {
+  animation-delay: .28s
+}
+
+.hero-txt>*:nth-child(3) {
+  animation-delay: .42s
+}
+
+.hero-txt>*:nth-child(4) {
+  animation-delay: .56s
+}
+
+@keyframes heroTexto {
+  from {
+    opacity: 0;
+    transform: translateY(26px)
+  }
+}
+
+.hero h1 {
+  animation-name: heroTitulo
+}
+
+@keyframes heroTitulo {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(.97);
+    letter-spacing: .06em
+  }
+}
+
+/* ---------- cardápio ---------- */
+.pc {
+  transition: transform .35s var(--suave)
+}
+
+.pc .pc-img {
+  transition: box-shadow .35s var(--suave)
+}
+
+@media (hover: hover) {
+  .pc:hover {
+    transform: translateY(-4px)
+  }
+
+  .pc:hover .pc-img {
+    box-shadow: 0 18px 34px -18px rgba(14, 13, 11, .55)
+  }
+
+  .pc-abrir:hover .pc-img img {
+    transform: scale(1.07)
+  }
+}
+
+.pc-add {
+  transition: background .2s, transform .25s var(--mola), box-shadow .25s
+}
+
+.pc-add:hover {
+  box-shadow: 0 8px 18px -8px rgba(245, 184, 0, .9)
+}
+
+/* "pop" ao adicionar */
+.pop {
+  animation: pop .5s var(--mola)
+}
+
+@keyframes pop {
+  35% {
+    transform: scale(1.22)
+  }
+
+  65% {
+    transform: scale(.94)
+  }
+}
+
+.prod-foto.pop {
+  animation: popFoto .45s var(--suave)
+}
+
+@keyframes popFoto {
+  40% {
+    transform: scale(.97)
+  }
+}
+
+/* coração batendo ao favoritar */
+.bate svg {
+  animation: bate .55s var(--mola)
+}
+
+@keyframes bate {
+  30% {
+    transform: scale(1.35)
+  }
+
+  60% {
+    transform: scale(.9)
+  }
+}
+
+/* janela do produto: conteúdo entra em sequência */
+.janela.on .prod-rolar>* {
+  animation: heroTexto .45s var(--suave) both
+}
+
+.janela.on .prod-rolar>*:nth-child(2) {
+  animation-delay: .04s
+}
+
+.janela.on .prod-rolar>*:nth-child(3) {
+  animation-delay: .08s
+}
+
+.janela.on .prod-rolar>*:nth-child(4) {
+  animation-delay: .12s
+}
+
+.janela.on .prod-rolar>*:nth-child(n+5) {
+  animation-delay: .16s
+}
+
+.janela.on .prod-foto img {
+  animation: heroZoom .9s var(--suave) both
+}
+
+@media (max-width:760px) {
+
+  /* no celular a janela sobe de baixo, estilo app */
+  .janela-caixa {
+    transform: translateY(60px)
+  }
+}
+
+/* ---------- carrinho ---------- */
+.voo {
+  position: fixed;
+  left: -11px;
+  top: -11px;
+  z-index: 120;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--amarelo);
+  box-shadow: 0 0 0 4px rgba(245, 184, 0, .3), 0 6px 16px rgba(0, 0, 0, .35);
+  pointer-events: none
+}
+
+.pula {
+  animation: pula .5s var(--mola)
+}
+
+@keyframes pula {
+  40% {
+    transform: scale(1.35)
+  }
+
+  70% {
+    transform: scale(.92)
+  }
+}
+
+.muda {
+  display: inline-block;
+  animation: muda .35s var(--suave)
+}
+
+@keyframes muda {
+  from {
+    opacity: .2;
+    transform: translateY(-6px)
+  }
+}
+
+.item {
+  transition: height .32s var(--suave), opacity .25s, transform .32s var(--suave), padding .32s, margin .32s
+}
+
+.item.saindo {
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(24px);
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0
+}
+
+/* pedido recebido: check desenhado */
+.pedido-ok {
+  display: flex;
+  align-items: center;
+  gap: 12px
+}
+
+.check-ok {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round
+}
+
+.check-ok circle {
+  stroke: #16A34A;
+  stroke-width: 3;
+  stroke-dasharray: 150;
+  stroke-dashoffset: 150;
+  animation: desenha .6s var(--suave) .1s forwards
+}
+
+.check-ok path {
+  stroke: #16A34A;
+  stroke-width: 4;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: desenha .35s var(--suave) .6s forwards
+}
+
+@keyframes desenha {
+  to {
+    stroke-dashoffset: 0
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .check-ok circle,
+  .check-ok path {
+    stroke-dashoffset: 0
+  }
+}
+
+/* ---------- acompanhamento do pedido ---------- */
+/* a linha "enche" até a etapa atual (só na 1ª vez e quando o status muda) */
+.anima .linha-tempo li::before {
+  transform-origin: top
+}
+
+.anima .linha-tempo li.feito::before {
+  animation: enche .45s var(--suave) both;
+  animation-delay: calc(var(--i, 0) * 110ms)
+}
+
+.anima .linha-tempo li.feito i,
+.anima .linha-tempo li.agora i {
+  animation: acende .45s var(--mola) both;
+  animation-delay: calc(var(--i, 0) * 110ms)
+}
+
+.anima .linha-tempo li.agora i {
+  animation: acende .45s var(--mola) both, pulsa 1.8s ease-in-out calc(var(--i, 0) * 110ms + .5s) infinite
+}
+
+.anima .linha-tempo li {
+  animation: heroTexto .5s var(--suave) both;
+  animation-delay: calc(var(--i, 0) * 70ms)
+}
+
+/* status mudou com a página aberta: destaca a etapa nova */
+.mudou .linha-tempo li.agora strong {
+  animation: brilha 1.2s var(--suave)
+}
+
+@keyframes enche {
+  from {
+    transform: scaleY(0)
+  }
+}
+
+@keyframes acende {
+  from {
+    transform: scale(.4)
+  }
+}
+
+@keyframes brilha {
+  0% {
+    color: var(--amarelo)
+  }
+}
+
+.anima .codigo-entrega,
+.anima .ent-publico,
+.anima .mapa-entrega,
+.anima .agendado-box {
+  animation: desliza .55s var(--suave) .2s both
+}
+
+@keyframes desliza {
+  from {
+    opacity: 0;
+    transform: translateX(-18px)
+  }
+}
+
+/* ---------- notificações e avisos ---------- */
+.aviso-flutuante {
+  transform: translate(-50%, 24px) scale(.96);
+  transition: opacity .3s var(--suave), transform .4s var(--mola)
+}
+
+.aviso-flutuante.on {
+  transform: translate(-50%, 0) scale(1)
+}
+
+.sino-painel:not([hidden]) {
+  animation: abreSino .22s var(--suave);
+  transform-origin: top right
+}
+
+@keyframes abreSino {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(.97)
+  }
+}
+
+.sino-lista li {
+  animation: heroTexto .35s var(--suave) both
+}
+
+.sino-lista li:nth-child(2) {
+  animation-delay: .03s
+}
+
+.sino-lista li:nth-child(3) {
+  animation-delay: .06s
+}
+
+.sino-lista li:nth-child(n+4) {
+  animation-delay: .09s
+}
+
+.badge {
+  transform-origin: center
+}
+
+/* abas e links com sublinhado deslizando */
+.abas a,
+.abas button {
+  transition: color .2s, border-color .25s var(--suave)
+}

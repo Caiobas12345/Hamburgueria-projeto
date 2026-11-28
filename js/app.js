@@ -820,6 +820,7 @@
     const novo = params[1] === 'novo';
     app.innerHTML = '<section class="secao"><div class="caixa"><p class="carregando">Carregando pedido...</p></div></section>';
     let terminado = false;
+    let statusDesenhado = '';
 
     const desenhar = async () => {
       const [{ data: p, error }, { data: itens }, { data: ev }, { data: ent }, { data: avs, error: erroAv }] = await Promise.all([
@@ -852,17 +853,20 @@
         if (canalPedido) { try { sb.removeChannel(canalPedido); } catch (e) { } canalPedido = null; }
       }
 
+      // anima a linha do tempo na primeira vez e quando o status muda (não a cada atualização)
+      const anima = statusDesenhado !== p.status ? (statusDesenhado ? ' anima mudou' : ' anima') : '';
+      statusDesenhado = p.status;
       app.innerHTML = `<section class="titulo-pag claro"><div class="caixa">
           <a class="voltar escuro" href="#conta">${ICON.voltar} Meus pedidos</a>
-          ${novo ? '<p class="sobre">Recebemos seu pedido!</p>' : '<p class="sobre">Acompanhe seu pedido</p>'}
+          ${novo ? '<div class="pedido-ok"><svg class="check-ok" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="23"/><path d="M15 27l7 7 15-16"/></svg><p class="sobre">Recebemos seu pedido!</p></div>' : '<p class="sobre">Acompanhe seu pedido</p>'}
           <h1>Pedido #${esc(p.codigo)}</h1><p class="sub">${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada no balcão'}</p></div></section>
-        <section class="secao curta"><div class="caixa pedido-grid">
+        <section class="secao curta"><div class="caixa pedido-grid${anima}">
           <div>
             ${p.agendado_para && p.status !== 'cancelado' ? `<div class="agendado-box">${ICON.relogio}<span><small>Pedido agendado</small><b>${esc(PNC.fmtAgendado(p.agendado_para))}</b></span></div>` : ''}
-            ${p.status === 'cancelado' ? `<div class="cancelado-box">Este pedido foi cancelado.${p.cancelado_motivo ? `<small>${esc(p.cancelado_motivo)}</small>` : ''}</div>` : `<ol class="linha-tempo">${passos.map((s, i) => {
+            ${p.status === 'cancelado' ? `<div class="cancelado-box">Este pedido foi cancelado.${p.cancelado_motivo ? `<small>${esc(p.cancelado_motivo)}</small>` : ''}</div>` : `<ol class="linha-tempo" style="--total:${passos.length}">${passos.map((s, i) => {
         const e = (ev || []).filter(x => x.status === s && !x.mensagem).pop();
         const final = p.status === 'entregue';
-        return `<li class="${i < atual || (final && i === atual) ? 'feito' : i === atual ? 'agora' : ''}"${i === atual ? ' aria-current="step"' : ''}><i></i><div><strong>${PNC.rotuloStatus(s, p.tipo)}</strong>${e && i <= atual ? `<small>${dataHora(e.criado_em)}</small>` : ''}</div></li>`;
+        return `<li style="--i:${i}" class="${i < atual || (final && i === atual) ? 'feito' : i === atual ? 'agora' : ''}"${i === atual ? ' aria-current="step"' : ''}><i></i><div><strong>${PNC.rotuloStatus(s, p.tipo)}</strong>${e && i <= atual ? `<small>${dataHora(e.criado_em)}</small>` : ''}</div></li>`;
       }).join('')}</ol>`}
             ${mostraCodigo ? `<div class="codigo-entrega">
               <div><small>Código de entrega</small>
@@ -1374,6 +1378,7 @@
       const btn = $('#btnConfirmar');
       btn.disabled = true;
       btn.textContent = 'Enviando...';
+      btn.classList.add('carregando');
       msg('');
       const chave = chavePedido();
       const extras = {};
@@ -1396,6 +1401,7 @@
       if (error) {
         btn.disabled = false;
         btn.textContent = 'Confirmar pedido';
+        btn.classList.remove('carregando');
         msg(traduzErro(error.message));
         if (/não está mais disponível|não está disponível/.test(error.message)) { await PNC.carregar(); }
         if (/cupom/i.test(error.message)) { cupom = null; mostrarCupom(); msgCupom(traduzErro(error.message)); atualizar(); }
@@ -1523,6 +1529,7 @@
       item.removidos = $$('[name=rem]:checked', form).map(x => x.value);
       item.obs = (form.querySelector('[name=obs]') || { value: '' }).value.trim();
       PNC.carrinho.adicionar(item);
+      document.dispatchEvent(new CustomEvent('pnc:adicionado', { detail: { el: caixa.querySelector('.prod-foto') } }));
       fecharJanela();
     };
     form.addEventListener('click', e => {
@@ -1649,7 +1656,7 @@
 
   /* carrinho do cartão: adiciona 1 unidade sem abrir a janela.
      Se o produto tem tamanho para escolher, abre a janela. */
-  function adicionarRapido(id) {
+  function adicionarRapido(id, origem) {
     const p = PNC.produto(id);
     if (!p || !p.disponivel) return;
     if (PNC.tamanhos(p).length) return abrirProduto(id);
@@ -1658,6 +1665,7 @@
       if (noCarrinho >= Number(p.estoque)) return toast('Só temos ' + Number(p.estoque) + ' de ' + p.nome + ' no momento, e já estão no seu carrinho.');
     }
     PNC.carrinho.adicionar({ produto_id: p.id, qtd: 1 });
+    document.dispatchEvent(new CustomEvent('pnc:adicionado', { detail: { el: origem } }));
     toast(p.nome + ' adicionado ao carrinho.', { href: '#carrinho', txt: 'Ver carrinho' });
   }
 
@@ -1673,9 +1681,9 @@
     else if (d.fecharJanela !== undefined) fecharJanela();
     else if (d.foto) { $('#fotoPrincipal').src = d.foto; $$('.miniaturas button').forEach(b => b.classList.toggle('on', b === t)); }
     else if (d.qtd) { const i = PNC.carrinho.itens().find(x => x.k === d.qtd); if (i) PNC.carrinho.quantidade(d.qtd, i.qtd + Number(d.d)); }
-    else if (d.remover) PNC.carrinho.remover(d.remover);
+    else if (d.remover) { const k = d.remover; PNC.anim ? PNC.anim.sair(t.closest('.item'), () => PNC.carrinho.remover(k)) : PNC.carrinho.remover(k); }
     else if (d.finalizar !== undefined) irParaCheckout();
-    else if (d.addRapido) adicionarRapido(Number(d.addRapido));
+    else if (d.addRapido) adicionarRapido(Number(d.addRapido), t);
     else if (d.repetir) { t.disabled = true; await repetirPedido(Number(d.repetir)); t.disabled = false; }
     else if (d.copiarLink) { try { await navigator.clipboard.writeText(d.copiarLink); toast('Link copiado. É só colar e enviar.'); } catch (er) { toast(d.copiarLink); } }
     else if (d.sair !== undefined) { if (PNC.notif) await PNC.notif.antesDeSair(); await sb.auth.signOut(); toast('Você saiu da conta.'); location.hash = 'inicio'; }
@@ -1694,6 +1702,7 @@
       $$('[data-fav="' + id + '"]').forEach(b => {
         b.classList.toggle('on', !tem);
         b.setAttribute('aria-pressed', !tem);
+        if (!tem) { b.classList.remove('bate'); void b.offsetWidth; b.classList.add('bate'); }
         if (b.classList.contains('pc-fav')) b.setAttribute('aria-label', (tem ? 'Favoritar' : 'Remover dos favoritos') + ': ' + ((PNC.produto(id) || {}).nome || ''));
       });
       toast(tem ? 'Removido dos favoritos.' : 'Salvo nos favoritos.', tem ? null : { href: '#conta/favoritos', txt: 'Ver favoritos' });
@@ -1811,8 +1820,11 @@
 
   function fim(r) {
     const chave = location.hash;
+    const paginaNova = chave !== ultimaRota;
     if (chave !== ultimaRota && !(r.nome === 'conta' && ultimaRota.indexOf('#conta') === 0 && chave.indexOf('#conta') === 0)) scrollTo(0, 0);
     ultimaRota = chave;
+    // animações (js/animacoes.js): só quando muda de página, não a cada atualização automática
+    if (paginaNova) document.dispatchEvent(new CustomEvent('pnc:pagina', { detail: { nome: r.nome } }));
     ligarVideos(app);
     atualizarTopo();
     montarRodape();

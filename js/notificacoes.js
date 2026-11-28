@@ -64,6 +64,8 @@
 
   function contador() {
     const n = Number(dados.nao_lidas) || 0;
+    if (n > (Number(num.dataset.n) || 0) && !num.hidden && PNC.anim) PNC.anim.bater(num, 'pula');
+    num.dataset.n = n;
     num.hidden = !n;
     num.textContent = n > 99 ? '99+' : n;
     btn.setAttribute('aria-label', n ? `Notificações: ${n} ${n === 1 ? 'nova' : 'novas'}` : 'Notificações');
