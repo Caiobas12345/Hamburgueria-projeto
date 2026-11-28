@@ -2,7 +2,7 @@
    PÃO NA CHAPA · Painel administrativo (#admin)
    Só aparece para quem tem papel "admin" (a segurança real está no banco: RLS).
    Seções: visão geral, pedidos, produtos, categorias, adicionais,
-   Explorar (campanhas), entrega, cupons e pontos, usuários (perfis e suspensão)
+   Explorar (campanhas), entrega, cupons e pontos, avaliações, usuários (perfis e suspensão)
    e configurações.
 ===================================================================== */
 (function () {
@@ -22,6 +22,7 @@
     ['explorar', 'Explorar'],
     ['entrega', 'Entrega e taxas'],
     ['cupons', 'Cupons e pontos'],
+    ['avaliacoes', 'Avaliações'],
     ['usuarios', 'Usuários'],
     ['config', 'Configurações']
   ];
@@ -41,11 +42,18 @@
       <div class="adm-corpo" id="adm"><p class="carregando">Carregando...</p></div>
     </section>`;
     const alvo = $('#adm');
-    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, cupons, usuarios, config })[sec](alvo);
+    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, cupons, avaliacoes, usuarios, config })[sec](alvo);
     contarAndamento();
+    contarPendentes();
   }
 
   function sair() { limpar.forEach(fn => { try { fn(); } catch (e) { } }); limpar = []; }
+
+  async function contarPendentes() {
+    const { data } = await sb.rpc('admin_listar_avaliacoes', { p_filtro: 'pendentes', p_limite: 1 });
+    const el = $('[data-cont="avaliacoes"]');
+    if (el) el.textContent = data && data.resumo && data.resumo.pendentes ? data.resumo.pendentes : '';
+  }
 
   async function contarAndamento() {
     const { count } = await sb.from('pedidos').select('id', { count: 'exact', head: true }).in('status', PNC.ANDAMENTO);
@@ -791,6 +799,57 @@
         cupons(el);
       }
     };
+  }
+
+  /* ===================================================================
+     AVALIAÇÕES — o cliente avalia depois da entrega; o comentário só
+     aparece no site depois de aprovado aqui (migração 005).
+  =================================================================== */
+  let filtroAv = 'pendentes';
+  async function avaliacoes(el) {
+    const filtros = [['pendentes', 'Para aprovar'], ['aprovadas', 'Publicadas'], ['ocultas', 'Ocultas'], ['todas', 'Todas']];
+    el.innerHTML = `<div class="adm-cab"><div><p class="sobre">O que os clientes acharam</p><h1>Avaliações</h1></div></div>
+      <div class="av-resumo" id="avResumo"></div>
+      <div class="filtros">${filtros.map(f => `<button type="button" class="chip ${f[0] === filtroAv ? 'on' : ''}" data-filtro-av="${f[0]}">${f[1]}</button>`).join('')}</div>
+      <div class="av-lista" id="avLista"><p class="carregando">Carregando...</p></div>`;
+
+    const carregar = async () => {
+      const { data, error } = await sb.rpc('admin_listar_avaliacoes', { p_filtro: filtroAv, p_limite: 200 });
+      const lista = $('#avLista');
+      if (!lista) return;
+      if (error) return erro(lista, error);
+      const r = data.resumo || {};
+      $('#avResumo').innerHTML = `<div><b>${r.media ? '★ ' + PNC.fmtNota(r.media) : '—'}</b><small>nota média dos pedidos</small></div>
+        <div><b>${Number(r.total || 0)}</b><small>${Number(r.total) === 1 ? 'avaliação' : 'avaliações'}</small></div>
+        <div><b>${Number(r.pendentes || 0)}</b><small>para aprovar</small></div>`;
+      const cont = $('[data-cont="avaliacoes"]');
+      if (cont) cont.textContent = r.pendentes ? r.pendentes : '';
+      lista.innerHTML = (data.lista || []).length ? data.lista.map(a => `<article class="av-card ${a.aprovada ? 'publicada' : a.moderada_em ? 'oculta' : ''}">
+          <header><div>${PNC.estrelas(a.nota, a.nota + ' de 5 estrelas')}<strong>${esc(a.cliente_nome)}</strong></div>
+            <span class="sm">Pedido <a href="#pedido/${a.pedido_id}">#${esc(a.codigo)}</a> · ${new Date(a.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</span></header>
+          ${a.comentario ? `<blockquote>${esc(a.comentario)}</blockquote>` : '<p class="sm">Sem comentário (só estrelas).</p>'}
+          ${(a.produtos || []).length || a.nota_entregador ? `<ul class="av-itens">${(a.produtos || []).map(p => `<li><span>${esc(p.nome)}</span>${PNC.estrelas(p.nota, p.nota + ' de 5')}</li>`).join('')}${a.nota_entregador ? `<li><span>Entregador${a.entregador ? ': ' + esc(a.entregador) : ''}</span>${PNC.estrelas(a.nota_entregador, a.nota_entregador + ' de 5')}</li>` : ''}</ul>` : ''}
+          <footer><span>${a.aprovada ? '<span class="st feito">Publicada no site</span>' : a.moderada_em ? '<span class="st cancelado">Oculta</span>' : '<span class="st andamento">Aguardando aprovação</span>'}</span>
+            <span class="av-botoes">${a.aprovada ? '' : `<button type="button" class="btn amarelo pequeno" data-aprovar="${a.id}">${a.comentario ? 'Publicar no site' : 'Aprovar'}</button>`}
+            ${a.aprovada || !a.moderada_em ? `<button type="button" class="btn-texto" data-ocultar="${a.id}">${a.aprovada ? 'Tirar do site' : 'Ocultar'}</button>` : ''}</span></footer>
+        </article>`).join('')
+        : `<p class="aviso-vazio">${filtroAv === 'pendentes' ? 'Nenhuma avaliação esperando aprovação.' : 'Nenhuma avaliação aqui.'}</p>`;
+    };
+
+    el.onclick = async e => {
+      const f = e.target.closest('[data-filtro-av]');
+      if (f) { filtroAv = f.dataset.filtroAv; $$('[data-filtro-av]', el).forEach(b => b.classList.toggle('on', b === f)); return carregar(); }
+      const ap = e.target.closest('[data-aprovar]'), oc = e.target.closest('[data-ocultar]');
+      const b = ap || oc;
+      if (!b) return;
+      b.disabled = true;
+      const { error } = await sb.rpc('admin_moderar_avaliacao', { p_id: Number((ap || oc).dataset[ap ? 'aprovar' : 'ocultar']), p_aprovar: !!ap });
+      if (error) { b.disabled = false; return ok(PNC.traduzErro(error.message)); }
+      ok(ap ? 'Avaliação aprovada.' : 'Avaliação ocultada.');
+      await atualizarSite(); // atualiza as estrelas e os comentários do site
+      carregar();
+    };
+    carregar();
   }
 
   /* ===================================================================

@@ -60,6 +60,7 @@
         <div><dt>Entregas</dt><dd>${n}</dd></div>
         ${e.desde ? `<div><dt>Na equipe desde</dt><dd>${esc(mesAno(e.desde))}</dd></div>` : ''}
         <div><dt>Cursos</dt><dd>${(e.cursos || []).length}</dd></div>
+        ${Number(e.avaliacoes) > 0 ? `<div><dt>Nota</dt><dd>★ ${PNC.fmtNota ? PNC.fmtNota(e.nota_media) : esc(String(e.nota_media))}</dd></div>` : ''}
       </dl>
       ${e.sobre ? `<p class="ent-sobre">${esc(e.sobre)}</p>` : ''}
       ${(e.cursos || []).length ? `<h4>Cursos</h4>${listaCursos(e.cursos)}` : ''}
@@ -149,7 +150,7 @@
       ${!saiu ? `<div class="ent-acoes"><button type="button" class="btn amarelo largo" data-ent-sair="${Number(p.id)}">Saí para entrega</button>
           <button type="button" class="btn-texto" data-ent-devolver="${Number(p.id)}">Devolver entrega</button></div>`
         : p.bloqueado ? '<p class="msg erro">Muitos códigos errados. Peça para a loja confirmar esta entrega.</p>'
-          : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
+        : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
             <label for="cod${Number(p.id)}">Código de entrega <small>Peça ao cliente os 4 números que aparecem no pedido dele.</small></label>
             <div class="ent-codigo-linha">
               <input class="campo" id="cod${Number(p.id)}" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required>

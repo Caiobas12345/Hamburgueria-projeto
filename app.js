@@ -209,6 +209,16 @@
     return `<span class="preco">${brl(p.preco)}</span>`;
   }
 
+  /* estrelas: só leitura (média) */
+  const fmtNota = n => Number(n).toFixed(1).replace('.', ',');
+  function estrelas(n, rotulo) {
+    const cheias = Math.round(Number(n) || 0);
+    return `<span class="estrelas" role="img" aria-label="${esc(rotulo || fmtNota(n) + ' de 5 estrelas')}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= cheias ? 'on' : ''}">★</i>`).join('')}</span>`;
+  }
+  PNC.estrelas = estrelas;
+  PNC.fmtNota = fmtNota;
+  const notaProduto = p => (E.notas || {})[p.id];
+
   function cartaoProduto(p) {
     const foto = (p.fotos || [])[0];
     const selos = [
@@ -218,7 +228,7 @@
     ].join('');
     return `<button type="button" class="pc${p.disponivel ? '' : ' off'}" data-produto="${p.id}">
       <span class="pc-img">${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" decoding="async">` : `<span class="sem-foto">${ICON.chama}</span>`}<span class="selos">${selos}</span></span>
-      <span class="pc-info"><strong>${esc(p.nome)}</strong>${precoHTML(p)}</span>
+      <span class="pc-info"><strong>${esc(p.nome)}</strong>${notaProduto(p) ? `<span class="pc-nota" aria-label="Nota ${fmtNota(notaProduto(p).media)} de 5, ${notaProduto(p).total} ${notaProduto(p).total === 1 ? 'avaliação' : 'avaliações'}"><b>★</b> ${fmtNota(notaProduto(p).media)} <small>(${notaProduto(p).total})</small></span>` : ''}${precoHTML(p)}</span>
     </button>`;
   }
   PNC.cartaoProduto = cartaoProduto;
@@ -308,7 +318,12 @@
       <dl class="dados-casa">${c.endereco ? `<dt>Endereço</dt><dd>${esc(c.endereco)}</dd>` : ''}${(c.horarios || []).length ? `<dt>Horários</dt><dd>${horariosLista()}</dd>` : ''}</dl>
     </div></section>` : '';
 
-    app.innerHTML = hero + cats + explorar + faixa + blocos + emBreve + sobre;
+    const deps = (E.depoimentos || []).slice(0, 6);
+    const depoimentos = deps.length ? `<section class="secao suave" aria-labelledby="t-dep"><div class="caixa">${cabecalhoSecao('Avaliações de quem pediu', 'O que dizem nossos clientes').replace('<h2>', '<h2 id="t-dep">')}
+      <div class="depoimentos">${deps.map(d => `<figure class="depo">${estrelas(d.nota, d.nota + ' de 5 estrelas')}<blockquote>${esc(d.comentario)}</blockquote><figcaption>${esc(d.nome)} · ${new Date(d.criado_em).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' }).replace('.', '')}</figcaption></figure>`).join('')}</div>
+    </div></section>` : '';
+
+    app.innerHTML = hero + cats + explorar + faixa + blocos + depoimentos + emBreve + sobre;
   };
 
   function horariosLista() {
@@ -535,11 +550,16 @@
     const corpo = $('#contaCorpo');
 
     if (aba === 'pedidos') {
-      const { data, error } = await sb.from('pedidos').select('id, codigo, criado_em, status, total, tipo').order('criado_em', { ascending: false }).limit(50);
+      const [{ data, error }, { data: avs }] = await Promise.all([
+        sb.from('pedidos').select('id, codigo, criado_em, status, total, tipo').order('criado_em', { ascending: false }).limit(50),
+        sb.from('avaliacoes').select('pedido_id')
+      ]);
       if (error) { corpo.innerHTML = vazio('Não foi possível carregar', traduzErro(error.message)); return; }
+      const avaliados = new Set((avs || []).map(a => Number(a.pedido_id)));
+      const podeAvaliarLista = !!avs;
       corpo.innerHTML = data.length ? `<div class="lista-pedidos">${data.map(p => `<a class="linha-pedido" href="#pedido/${p.id}">
           <span><strong>Pedido #${esc(p.codigo)}</strong><small>${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</small></span>
-          <span class="${corStatus(p.status)}">${PNC.rotuloStatus(p.status, p.tipo)}</span><b>${brl(p.total)}</b>${ICON.seta}</a>`).join('')}</div>`
+          <span class="${corStatus(p.status)}">${PNC.rotuloStatus(p.status, p.tipo)}</span>${podeAvaliarLista && p.status === 'entregue' && !avaliados.has(Number(p.id)) ? '<span class="lp-avaliar">★ Avaliar</span>' : ''}<b>${brl(p.total)}</b>${ICON.seta}</a>`).join('')}</div>`
         : vazio('Você ainda não fez pedidos', 'Quando fizer, você acompanha tudo por aqui.', '<a class="btn amarelo" href="#cardapio">Ver cardápio</a>');
     }
 
@@ -637,13 +657,15 @@
     const id = Number(params[0]);
     const novo = params[1] === 'novo';
     app.innerHTML = '<section class="secao"><div class="caixa"><p class="carregando">Carregando pedido...</p></div></section>';
+    let terminado = false;
 
     const desenhar = async () => {
-      const [{ data: p, error }, { data: itens }, { data: ev }, { data: ent }] = await Promise.all([
+      const [{ data: p, error }, { data: itens }, { data: ev }, { data: ent }, { data: avs, error: erroAv }] = await Promise.all([
         sb.from('pedidos').select('*').eq('id', id).maybeSingle(),
         sb.from('pedido_itens').select('*').eq('pedido_id', id).order('id'),
         sb.from('pedido_eventos').select('*').eq('pedido_id', id).order('criado_em'),
-        sb.rpc('entregador_do_pedido', { p_pedido: id })
+        sb.rpc('entregador_do_pedido', { p_pedido: id }),
+        sb.from('avaliacoes').select('*').eq('pedido_id', id)
       ]);
       if (location.hash.indexOf('#pedido/' + id) !== 0) return;
       if (error || !p) { app.innerHTML = `<section class="secao"><div class="caixa">${vazio('Pedido não encontrado', '', '<a class="btn escuro" href="#conta">Meus pedidos</a>')}</div></section>`; return; }
@@ -656,6 +678,17 @@
       const pixPendente = p.pagamento === 'pix' && ['aguardando_confirmacao', 'aguardando_pagamento'].includes(p.status);
       const mostraCodigo = p.tipo === 'entrega' && p.codigo_entrega && ['aguardando_entregador', 'saiu_entrega'].includes(p.status);
       const temEntregador = ent && ent.nome && PNC.cartaoEntregador;
+      // avaliação: só para quem fez o pedido, depois de entregue (a migração 005 precisa estar rodada)
+      const minhaAv = (avs || [])[0] || null;
+      let notasAv = [];
+      if (minhaAv) { const { data: np } = await sb.from('avaliacao_produtos').select('*').eq('avaliacao_id', minhaAv.id); notasAv = np || []; }
+      const podeAvaliar = !erroAv && p.status === 'entregue' && S.user && p.usuario_id === S.user.id;
+      // pedido terminado não muda mais: para a atualização automática (não apaga o que o cliente digita)
+      terminado = PNC.FINAIS.includes(p.status);
+      if (terminado) {
+        clearInterval(pollPedido);
+        if (canalPedido) { try { sb.removeChannel(canalPedido); } catch (e) { } canalPedido = null; }
+      }
 
       app.innerHTML = `<section class="titulo-pag claro"><div class="caixa">
           <a class="voltar escuro" href="#conta">${ICON.voltar} Meus pedidos</a>
@@ -674,6 +707,7 @@
                 <p class="sm">Informe este código ao entregador só quando receber o pedido. Ele também pode ler o QR code.</p></div>
               ${PNC.qrSvg ? PNC.qrSvg('PNC:' + p.codigo + ':' + p.codigo_entrega, 'QR code do código de entrega') : ''}
             </div>` : ''}
+            ${podeAvaliar ? (minhaAv ? avaliacaoFeita(minhaAv, notasAv, itens || [], temEntregador ? ent : null) : formAvaliacao(p, itens || [], temEntregador ? ent : null)) : ''}
             ${temEntregador && p.status !== 'cancelado' ? PNC.cartaoEntregador(ent, p.status === 'entregue' ? 'Quem entregou' : 'Seu entregador') : ''}
             ${p.mensagem_cliente ? `<div class="recado"><small>Mensagem da hamburgueria</small><p>${esc(p.mensagem_cliente)}</p></div>` : ''}
             ${recados.length > 1 ? `<details class="historico"><summary>Histórico de mensagens</summary>${recados.map(r => `<p><small>${dataHora(r.criado_em)}</small> ${esc(r.mensagem)}</p>`).join('')}</details>` : ''}
@@ -698,6 +732,8 @@
     };
 
     await desenhar();
+    avalAtual = { id, redesenhar: desenhar };
+    if (terminado) return; // entregue ou cancelado: não precisa ficar atualizando
 
     /* atualização automática: em tempo real (Supabase Realtime) e, por garantia, a cada 30 s.
        Cada abertura usa um canal com nome próprio: reabrir o mesmo pedido antes do canal
@@ -706,6 +742,71 @@
     canalPedido = PNC.canal('pedido-' + id, c => c
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: 'id=eq.' + id }, () => desenhar()));
   };
+
+  /* ---------- AVALIAÇÃO DO PEDIDO ---------- */
+  const ROT_NOTA = ['', 'Ruim', 'Regular', 'Bom', 'Muito bom', 'Excelente'];
+  function seletorEstrelas(nome, legenda, obrig) {
+    return `<fieldset class="estrelas-in" data-estrelas="${esc(nome)}"><legend>${esc(legenda)}${obrig ? '' : ' <small>(opcional)</small>'}</legend>
+      <div class="estrelas-op">${[1, 2, 3, 4, 5].map(i => `<label><input type="radio" name="${esc(nome)}" value="${i}"><span aria-hidden="true">★</span><b class="vh">${i} ${i === 1 ? 'estrela' : 'estrelas'} (${ROT_NOTA[i]})</b></label>`).join('')}
+      <em class="estrelas-rot" aria-hidden="true"></em></div></fieldset>`;
+  }
+  const produtosDoPedido = itens => {
+    const vistos = new Set();
+    return itens.filter(i => i.produto_id && !vistos.has(i.produto_id) && vistos.add(i.produto_id));
+  };
+  function formAvaliacao(p, itens, ent) {
+    const prods = produtosDoPedido(itens);
+    return `<form class="avaliar" id="formAval" novalidate>
+      <p class="sobre">Pedido entregue</p><h3>Como foi o seu pedido?</h3>
+      ${seletorEstrelas('nota', 'Nota do pedido', true)}
+      <label class="cp"><span>Comentário <small>(opcional)</small></span><textarea class="campo" name="comentario" rows="3" maxlength="500" placeholder="Conte o que achou do lanche, da entrega..."></textarea></label>
+      ${prods.length ? `<div class="avaliar-prods">${prods.map(i => seletorEstrelas('prod_' + i.produto_id, i.nome, false)).join('')}</div>` : ''}
+      ${ent ? seletorEstrelas('nota_ent', 'Entregador: ' + ent.nome, false) : ''}
+      <p class="msg erro" id="msgAval" hidden></p>
+      <button class="btn amarelo" type="submit">Enviar avaliação</button>
+      <p class="sm">Seu comentário pode aparecer no site depois de aprovado pela hamburgueria, só com o seu primeiro nome e a inicial do sobrenome.</p>
+    </form>`;
+  }
+  function avaliacaoFeita(a, notas, itens, ent) {
+    const nomeProd = id => (itens.find(i => i.produto_id === id) || {}).nome || 'Produto';
+    return `<div class="avaliar feita"><p class="sobre">Sua avaliação</p>
+      <p class="av-geral">${estrelas(a.nota, a.nota + ' de 5 estrelas')} <b>${ROT_NOTA[a.nota]}</b></p>
+      ${a.comentario ? `<blockquote>${esc(a.comentario)}</blockquote>` : ''}
+      ${notas.length || a.nota_entregador ? `<ul class="av-itens">${notas.map(n => `<li><span>${esc(nomeProd(n.produto_id))}</span>${estrelas(n.nota, n.nota + ' de 5 estrelas')}</li>`).join('')}${a.nota_entregador ? `<li><span>Entregador${ent ? ': ' + esc(ent.nome) : ''}</span>${estrelas(a.nota_entregador, a.nota_entregador + ' de 5 estrelas')}</li>` : ''}</ul>` : ''}
+      <p class="sm">Obrigado por avaliar!${a.comentario ? (a.aprovada ? ' Seu comentário está publicado no site.' : ' Seu comentário aparece no site depois de aprovado pela hamburgueria.') : ''}</p></div>`;
+  }
+  /* os eventos do formulário de avaliação são ligados uma vez só; o pedido aberto fica em avalAtual */
+  let avalAtual = null;
+  (function ligarAvaliacao() {
+    app.addEventListener('change', e => {
+      const fs = e.target.closest('[data-estrelas]');
+      if (!fs) return;
+      const v = Number(e.target.value);
+      fs.querySelectorAll('label').forEach((l, i) => l.classList.toggle('on', i < v));
+      const rot = fs.querySelector('.estrelas-rot');
+      if (rot) rot.textContent = ROT_NOTA[v] || '';
+      const m = $('#msgAval');
+      if (m && fs.dataset.estrelas === 'nota') m.hidden = true;
+    });
+    app.addEventListener('submit', async e => {
+      if (e.target.id !== 'formAval') return;
+      e.preventDefault();
+      const f = e.target;
+      const val = n => { const x = f.querySelector(`[name="${n}"]:checked`); return x ? Number(x.value) : null; };
+      const msg = $('#msgAval');
+      const nota = val('nota');
+      if (!nota) { msg.textContent = 'Escolha de 1 a 5 estrelas para o pedido.'; msg.hidden = false; return; }
+      const produtos = Array.from(f.querySelectorAll('[data-estrelas^="prod_"]')).map(fs => ({ produto_id: Number(fs.dataset.estrelas.slice(5)), nota: val(fs.dataset.estrelas) })).filter(x => x.nota);
+      const btn = f.querySelector('[type=submit]');
+      btn.disabled = true;
+      if (!avalAtual) return;
+      const { id, redesenhar } = avalAtual;
+      const { error } = await sb.rpc('avaliar_pedido', { p_pedido: id, p_nota: nota, p_comentario: f.comentario.value.trim(), p_produtos: produtos, p_nota_entregador: val('nota_ent') });
+      if (error) { btn.disabled = false; msg.textContent = traduzErro(error.message); msg.hidden = false; return; }
+      toast('Obrigado pela avaliação!');
+      redesenhar();
+    });
+  })();
 
   function detalhesItem(adicionais, removidos, obs) {
     const a = (adicionais || []).map(x => '+ ' + esc(x.nome));
@@ -1070,6 +1171,7 @@
             <p class="sobre">${esc(cat ? cat.nome : '')}</p>
             <div class="prod-titulo"><h2 id="janelaTitulo">${esc(p.nome)}</h2>${S.user ? `<button type="button" class="fav${fav ? ' on' : ''}" data-fav="${p.id}" aria-pressed="${fav}" aria-label="Favoritar">${ICON.coracao}</button>` : ''}</div>
             <p class="prod-preco">${precoHTML(p)}</p>
+            ${notaProduto(p) ? `<p class="prod-nota">${estrelas(notaProduto(p).media)} <b>${fmtNota(notaProduto(p).media)}</b> <small>${notaProduto(p).total} ${notaProduto(p).total === 1 ? 'avaliação' : 'avaliações'}</small></p>` : ''}
             ${p.descricao ? `<p class="prod-desc">${esc(p.descricao)}</p>` : ''}
             ${(p.inclui || []).length ? `<div class="bloco"><h3>O combo inclui</h3><ul class="inclui">${p.inclui.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
             ${(p.ingredientes || []).length ? `<div class="bloco"><h3>Ingredientes</h3><p class="ingr">${p.ingredientes.map(esc).join(', ')}</p></div>` : ''}

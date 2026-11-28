@@ -154,7 +154,7 @@
     if (!PNC.sb) { E.carregado = true; return; }
     try {
       const sb = PNC.sb;
-      const [cfgR, catR, prodR, addR, paR, campR, baiR, maisR] = await Promise.all([
+      const [cfgR, catR, prodR, addR, paR, campR, baiR, maisR, notasR, depR] = await Promise.all([
         sb.from('configuracoes').select('*').eq('id', 1).maybeSingle(),
         sb.from('categorias').select('*').eq('ativo', true).order('ordem'),
         sb.from('produtos').select('*').eq('ativo', true).order('ordem'),
@@ -162,7 +162,10 @@
         sb.from('produto_adicionais').select('produto_id, adicional_id'),
         sb.from('campanhas').select('*').eq('ativo', true).order('ordem'),
         sb.from('bairros').select('*').eq('ativo', true).order('nome'),
-        sb.rpc('mais_pedidos', { p_limite: 8 })
+        sb.rpc('mais_pedidos', { p_limite: 8 }),
+        // avaliações aprovadas (se a migração 005 ainda não rodou, o site segue sem estrelas)
+        sb.rpc('notas_produtos'),
+        sb.rpc('avaliacoes_publicas', { p_limite: 6 })
       ]);
       const erro = [cfgR, catR, prodR, addR, paR, campR, baiR].find(r => r.error);
       if (erro) throw erro.error;
@@ -177,6 +180,9 @@
       E.campanhas = campR.data || [];
       E.bairros = baiR.data || [];
       E.maisPedidos = (maisR && !maisR.error && maisR.data ? maisR.data : []).map(r => Number(r.produto_id));
+      E.notas = {};
+      (notasR && !notasR.error && notasR.data ? notasR.data : []).forEach(n => { E.notas[Number(n.produto_id)] = { media: Number(n.media), total: Number(n.total) }; });
+      E.depoimentos = depR && !depR.error && depR.data ? depR.data : [];
       E.erro = '';
     } catch (e) {
       console.error('Erro ao carregar o cardápio:', e);
