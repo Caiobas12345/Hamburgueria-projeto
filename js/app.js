@@ -521,6 +521,9 @@
   P.conta = async function (params) {
     const aba = params[0] || 'pedidos';
     const abas = [['pedidos', 'Meus pedidos'], ['dados', 'Dados pessoais'], ['enderecos', 'Endereços'], ['favoritos', 'Favoritos']];
+    // a aba de pontos aparece quando o programa está ligado ou o cliente já tem histórico
+    const { data: pts } = await sb.rpc('meus_pontos');
+    if (pts && (pts.ativo || (pts.extrato || []).length)) abas.splice(1, 0, ['pontos', 'Meus pontos']);
     const nome = (S.perfil && S.perfil.nome) || (S.user && S.user.email) || '';
     const papel = (S.perfil && S.perfil.papel) || 'cliente';
     const suspensa = !PNC.contaAtiva();
@@ -555,6 +558,30 @@
       corpo.innerHTML = `<div class="enderecos">${(data || []).map(e => `<div class="end-card"><strong>${esc(e.apelido)}</strong><p>${esc(textoEndereco(e))}</p><button class="btn-texto" type="button" data-apagar-end="${e.id}">Remover</button></div>`).join('') || '<p class="aviso-vazio">Nenhum endereço salvo.</p>'}</div>
         <h3 class="subt">Novo endereço</h3>
         <form class="form-conta" data-form="endereco" novalidate>${formEndereco('n')}<button class="btn escuro" type="submit">Salvar endereço</button></form>`;
+    }
+
+    if (aba === 'pontos') {
+      if (!pts) { corpo.innerHTML = vazio('Programa de pontos indisponível', 'Tente novamente mais tarde.'); return; }
+      const temRegra = pts.pontos_para_resgate && pts.valor_resgate;
+      const pct = temRegra ? Math.min(100, Math.round((pts.saldo % pts.pontos_para_resgate) / pts.pontos_para_resgate * 100)) : 0;
+      const blocos = temRegra ? Math.floor(pts.saldo / pts.pontos_para_resgate) : 0;
+      const ROT = { ganho: 'Ganhou', resgate: 'Usou', estorno: 'Devolvido' };
+      corpo.innerHTML = `<div class="pontos-conta">
+        <div class="pontos-saldo">
+          <p class="sobre">Seu saldo</p>
+          <p class="pontos-num">${Number(pts.saldo)} <small>pontos</small></p>
+          ${!pts.ativo ? '<p class="sm">O programa de pontos está pausado pela loja. Seus pontos continuam guardados.</p>'
+            : blocos > 0 ? `<p>Você já pode trocar <b>${blocos * pts.pontos_para_resgate} pontos</b> por <b>${brl(blocos * pts.valor_resgate)}</b> de desconto no próximo pedido.</p>`
+            : `<p>Faltam <b>${pts.pontos_para_resgate - (pts.saldo % pts.pontos_para_resgate)} pontos</b> para ganhar ${brl(pts.valor_resgate)} de desconto.</p>`}
+          ${pts.ativo && temRegra ? `<div class="pontos-barra" role="img" aria-label="${pct}% do caminho até o próximo desconto"><i style="width:${pct}%"></i></div>` : ''}
+        </div>
+        ${pts.ativo ? `<div class="pontos-regras"><h3>Como funciona</h3><ul>
+          <li>Você ganha <b>${String(pts.pontos_por_real).replace('.', ',')} ${Number(pts.pontos_por_real) === 1 ? 'ponto' : 'pontos'} por real</b> gasto em produtos, quando o pedido é entregue.</li>
+          <li>Cada <b>${pts.pontos_para_resgate} pontos</b> viram <b>${brl(pts.valor_resgate)}</b> de desconto.</li>
+          <li>Para usar, marque "Usar meus pontos" ao finalizar o pedido.</li>
+          <li>Se um pedido com pontos for cancelado, os pontos voltam para você.</li></ul></div>` : ''}
+        <div class="pontos-extrato"><h3>Extrato</h3>${(pts.extrato || []).length ? `<ul>${pts.extrato.map(m => `<li><span><b>${ROT[m.tipo] || m.tipo}</b><small>${esc(m.descricao)} · ${dataHora(m.criado_em)}</small></span><strong class="${m.pontos > 0 ? 'mais' : 'menos'}">${m.pontos > 0 ? '+' : '−'}${Math.abs(m.pontos)}</strong></li>`).join('')}</ul>` : '<p class="sm">Seus pontos aparecem aqui quando um pedido for entregue.</p>'}</div>
+      </div>`;
     }
 
     if (aba === 'favoritos') {
@@ -660,6 +687,8 @@
             ${(itens || []).map(i => `<div class="r-item"><div><strong>${i.quantidade}× ${esc(i.nome)}${i.tamanho ? ' (' + esc(i.tamanho) + ')' : ''}</strong>${detalhesItem(i.adicionais, i.removidos, i.observacao)}</div><b>${brl(i.total)}</b></div>`).join('')}
             <div class="r-linha"><span>Subtotal</span><b>${brl(p.subtotal)}</b></div>
             ${p.tipo === 'entrega' ? `<div class="r-linha"><span>Taxa de entrega</span><b>${brl(p.taxa_entrega)}</b></div>` : ''}
+            ${Number(p.desconto) > 0 ? `<div class="r-linha desconto"><span>Cupom ${esc(p.cupom_codigo || '')}</span><b>− ${brl(p.desconto)}</b></div>` : ''}
+            ${Number(p.desconto_pontos) > 0 ? `<div class="r-linha desconto"><span>${Number(p.pontos_usados)} pontos</span><b>− ${brl(p.desconto_pontos)}</b></div>` : ''}
             <div class="r-linha total"><span>Total</span><b>${brl(p.total)}</b></div>
             <dl class="r-dados"><dt>Pagamento</dt><dd>${PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) : ''}</dd>
             ${p.endereco ? `<dt>Endereço</dt><dd>${esc(textoEndereco(p.endereco))}</dd>` : ''}
@@ -696,6 +725,8 @@
     });
     l.push('', `Subtotal: ${brl(p.subtotal)}`);
     if (p.tipo === 'entrega') l.push(`Entrega: ${brl(p.taxa_entrega)}`);
+    if (Number(p.desconto) > 0) l.push(`Cupom ${p.cupom_codigo || ''}: − ${brl(p.desconto)}`);
+    if (Number(p.desconto_pontos) > 0) l.push(`${p.pontos_usados} pontos: − ${brl(p.desconto_pontos)}`);
     l.push(`*Total: ${brl(p.total)}*`, '', `Pagamento: ${PAGAMENTO[p.pagamento]}${p.troco_para ? ' (troco para ' + brl(p.troco_para) + ')' : ''}`);
     l.push(p.tipo === 'entrega' && p.endereco ? 'Entrega em: ' + textoEndereco(p.endereco) : 'Retirada no balcão');
     l.push(`Cliente: ${p.cliente_nome} · ${p.cliente_telefone}`);
@@ -755,6 +786,10 @@
     const suspensa = !PNC.contaAtiva();
     const fechado = suspensa || !c.aceitando_pedidos || aberto === false || !tipos.length || !pags.length;
     const perfil = S.perfil || {};
+    // pontos de fidelidade (se a migração 004 ainda não foi rodada, a tela segue sem pontos)
+    const { data: pts } = await sb.rpc('meus_pontos');
+    const fid = pts && pts.ativo ? pts : null;
+    let cupom = null; // cupom aplicado: { codigo, tipo, desconto }
 
     app.innerHTML = `<section class="titulo-pag claro"><div class="caixa"><a class="voltar escuro" href="#carrinho">${ICON.voltar} Carrinho</a><h1>Finalizar pedido</h1></div></section>
       <section class="secao curta"><div class="caixa carrinho-grid">
@@ -786,7 +821,16 @@
           ${PNC.carrinho.itens().map(i => { const p = PNC.produto(i.produto_id); const t = PNC.carrinho.linha(i); return p && t != null ? `<div class="r-item"><div><strong>${i.qtd}× ${esc(p.nome)}${i.tamanho ? ' (' + esc(i.tamanho) + ')' : ''}</strong></div><b>${brl(t)}</b></div>` : ''; }).join('')}
           <div class="r-linha"><span>Subtotal</span><b>${brl(PNC.carrinho.subtotal())}</b></div>
           <div class="r-linha" id="linhaTaxa"><span>Taxa de entrega</span><b id="kTaxa">—</b></div>
+          <div class="r-linha desconto" id="linhaCupom" hidden><span id="kCupomRot">Cupom</span><b id="kCupomVal"></b></div>
+          <div class="r-linha desconto" id="linhaPontos" hidden><span id="kPontosRot">Pontos</span><b id="kPontosVal"></b></div>
           <div class="r-linha total"><span>Total</span><b id="kTotal">${brl(PNC.carrinho.subtotal())}</b></div>
+          <div class="cupom-box">
+            <label for="kCupom">Cupom de desconto</label>
+            <div class="cupom-linha" id="cupomForm"><input class="campo" id="kCupom" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="30" placeholder="Digite o código"><button class="btn linha" type="button" id="btnCupom">Aplicar</button></div>
+            <div class="cupom-ok" id="cupomOk" hidden><span><b id="cupomCod"></b><small id="cupomDesc"></small></span><button class="btn-texto" type="button" id="btnTiraCupom">Remover</button></div>
+            <p class="sm cupom-msg" id="msgCupom" role="status" hidden></p>
+          </div>
+          ${fid ? `<div class="pontos-box" id="pontosBox"></div>` : ''}
           <p class="msg erro" id="msgCheckout" hidden></p>
           <button class="btn amarelo largo" type="submit" form="formCheckout" id="btnConfirmar" ${fechado ? 'disabled' : ''}>Confirmar pedido</button>
           <p class="sm">O valor final é conferido pela loja no momento do pedido.</p>
@@ -817,9 +861,80 @@
         m.textContent = r.ok ? '' : 'Ainda não entregamos neste bairro. Escolha retirada ou outro endereço.';
       }
       $('#linhaTaxa').hidden = tipo !== 'entrega';
-      $('#kTotal').textContent = brl(PNC.carrinho.subtotal() + (taxa || 0));
+      const sub = PNC.carrinho.subtotal();
+      ultimaTaxa = taxa || 0;
+      // prévia do desconto (o valor final é recalculado pelo banco ao criar o pedido)
+      let dCupom = 0;
+      if (cupom) dCupom = cupom.tipo === 'frete_gratis' ? (tipo === 'entrega' ? (taxa || 0) : 0) : cupom.desconto;
+      $('#linhaCupom').hidden = !cupom;
+      if (cupom) {
+        $('#kCupomRot').textContent = 'Cupom ' + cupom.codigo;
+        $('#kCupomVal').textContent = cupom.tipo === 'frete_gratis' && tipo !== 'entrega' ? 'só na entrega' : '− ' + brl(dCupom);
+      }
+      const dPontos = desenharPontos(sub - (cupom && cupom.tipo !== 'frete_gratis' ? dCupom : 0));
+      $('#linhaPontos').hidden = !dPontos;
+      if (dPontos) $('#kPontosVal').textContent = '− ' + brl(dPontos);
+      $('#kTotal').textContent = brl(Math.max(0, sub + (taxa || 0) - dCupom - dPontos));
+      if (cupom && tipoCupom !== tipo) { tipoCupom = tipo; revalidarCupom(); }
       $('#btnConfirmar').disabled = fechado || !ok;
     };
+
+    /* pontos: mostra o saldo e, se der, a opção de trocar por desconto */
+    let ultimaTaxa = 0, tipoCupom = null;
+    function desenharPontos(produtosRestantes) {
+      const box = $('#pontosBox');
+      if (!fid || !box) return 0;
+      const blocos = Math.floor(fid.saldo / fid.pontos_para_resgate);
+      const cabe = Math.floor(Math.max(0, produtosRestantes) / fid.valor_resgate + 1e-9);
+      const usar = Math.min(blocos, cabe);
+      const marcado = $('#kPontos') && $('#kPontos').checked;
+      if (blocos < 1) {
+        const falta = fid.pontos_para_resgate - fid.saldo;
+        box.innerHTML = `<p class="sm"><b>Seus pontos: ${fid.saldo}</b> · faltam ${falta} para trocar por ${brl(fid.valor_resgate)} de desconto.</p>`;
+        return 0;
+      }
+      if (usar < 1) {
+        box.innerHTML = `<p class="sm"><b>Seus pontos: ${fid.saldo}</b> · o pedido precisa ter pelo menos ${brl(fid.valor_resgate)} em produtos para usar pontos.</p>`;
+        return 0;
+      }
+      box.innerHTML = `<label class="check pontos-check"><input type="checkbox" id="kPontos" ${marcado ? 'checked' : ''}>
+        <span>Usar meus pontos<small>${usar * fid.pontos_para_resgate} de ${fid.saldo} pontos = ${brl(usar * fid.valor_resgate)} de desconto</small></span></label>`;
+      return marcado ? usar * fid.valor_resgate : 0;
+    }
+
+    /* cupom: confere o código no banco e mostra a prévia do desconto */
+    const msgCupom = (t, bom) => { const m = $('#msgCupom'); m.textContent = t || ''; m.hidden = !t; m.classList.toggle('ok', !!bom); };
+    async function aplicarCupom(codigo) {
+      const tipo = (form.querySelector('[name=tipo]:checked') || {}).value;
+      const btn = $('#btnCupom');
+      btn.disabled = true;
+      const { data, error } = await sb.rpc('validar_cupom', { p_codigo: codigo, p_subtotal: PNC.carrinho.subtotal(), p_tipo: tipo, p_taxa: ultimaTaxa });
+      btn.disabled = false;
+      if (error) { msgCupom(traduzErro(error.message)); return; }
+      if (!data || !data.ok) { cupom = null; mostrarCupom(); msgCupom(data && data.mensagem); atualizar(); return; }
+      cupom = { codigo: data.codigo, tipo: data.tipo, desconto: Number(data.desconto) || 0, descricao: data.descricao };
+      tipoCupom = tipo;
+      mostrarCupom();
+      msgCupom('');
+      atualizar();
+    }
+    function revalidarCupom() { if (cupom) aplicarCupom(cupom.codigo); }
+    function mostrarCupom() {
+      $('#cupomForm').hidden = !!cupom;
+      $('#cupomOk').hidden = !cupom;
+      if (cupom) {
+        $('#cupomCod').textContent = cupom.codigo;
+        $('#cupomDesc').textContent = cupom.descricao || (cupom.tipo === 'frete_gratis' ? 'Entrega grátis' : 'Desconto aplicado');
+      }
+    }
+    $('#btnCupom').addEventListener('click', () => {
+      const v = $('#kCupom').value.trim();
+      if (!v) return msgCupom('Digite o código do cupom.');
+      aplicarCupom(v);
+    });
+    $('#kCupom').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#btnCupom').click(); } });
+    $('#btnTiraCupom').addEventListener('click', () => { cupom = null; $('#kCupom').value = ''; mostrarCupom(); msgCupom(''); atualizar(); $('#kCupom').focus(); });
+    if (fid) $('#pontosBox').addEventListener('change', atualizar);
     form.addEventListener('change', atualizar);
     form.addEventListener('input', e => { if (e.target.id === 'kBairro' || e.target.id === 'kBairroOutro') atualizar(); });
     atualizar();
@@ -846,7 +961,11 @@
       btn.textContent = 'Enviando...';
       msg('');
       const chave = chavePedido();
+      const extras = {};
+      if (cupom) extras.p_cupom = cupom.codigo;
+      if ($('#kPontos') && $('#kPontos').checked) extras.p_usar_pontos = true;
       const { data, error } = await sb.rpc('criar_pedido', {
+        ...extras,
         p_itens: PNC.carrinho.paraPedido(),
         p_tipo: tipo,
         p_endereco: endereco ? { rua: endereco.rua, numero: endereco.numero, complemento: endereco.complemento || '', bairro: endereco.bairro, cidade: endereco.cidade || '', referencia: endereco.referencia || '' } : null,
@@ -862,6 +981,7 @@
         btn.textContent = 'Confirmar pedido';
         msg(traduzErro(error.message));
         if (/não está mais disponível|não está disponível/.test(error.message)) { await PNC.carregar(); }
+        if (/cupom/i.test(error.message)) { cupom = null; mostrarCupom(); msgCupom(traduzErro(error.message)); atualizar(); }
         return;
       }
       if (tipo === 'entrega' && endSel === 'novo' && $('#kSalvar') && $('#kSalvar').checked) {

@@ -3957,34 +3957,12 @@ button.chip {
     padding: 16px
   }
 
-  .tu-nome {
-    grid-area: nome
-  }
-
-  .tu-sit {
-    grid-area: sit;
-    justify-self: end
-  }
-
-  .tu-email {
-    grid-area: email
-  }
-
-  .tu-papel {
-    grid-area: papel
-  }
-
-  .tu-data {
-    grid-area: data;
-    justify-self: end;
-    font-size: .86rem
-  }
-
-  .tu-acoes {
-    grid-area: acoes;
-    justify-content: flex-start;
-    padding-top: 6px
-  }
+  .tu-nome { grid-area: nome }
+  .tu-sit { grid-area: sit; justify-self: end }
+  .tu-email { grid-area: email }
+  .tu-papel { grid-area: papel }
+  .tu-data { grid-area: data; justify-self: end; font-size: .86rem }
+  .tu-acoes { grid-area: acoes; justify-content: flex-start; padding-top: 6px }
 
   .tu-rot {
     display: inline;
@@ -4393,7 +4371,7 @@ body[data-rota="cozinha"] .rodape {
   text-align: center
 }
 
-.ent-numeros div+div {
+.ent-numeros div + div {
   border-left: 1px solid var(--linha)
 }
 
@@ -4919,5 +4897,290 @@ body[data-rota="entregador"] .rodape {
   .ent-abas a {
     flex: 1;
     text-align: center
+  }
+}
+
+/* =====================================================================
+   ETAPA 4 · CUPONS E PONTOS
+===================================================================== */
+
+/* linhas de desconto nos resumos */
+.r-linha.desconto b,
+.r-linha.desconto span {
+  color: var(--verde)
+}
+
+.cp-desc {
+  font-style: normal;
+  color: var(--verde);
+  font-weight: 700
+}
+
+/* checkout: cupom */
+.cupom-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--linha)
+}
+
+.cupom-box > label {
+  font-weight: 700;
+  font-size: .92rem
+}
+
+.cupom-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px
+}
+
+.cupom-linha .campo {
+  text-transform: uppercase;
+  letter-spacing: .06em
+}
+
+.cupom-linha .campo::placeholder {
+  text-transform: none;
+  letter-spacing: 0
+}
+
+.cupom-ok {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--verde);
+  border-radius: var(--raio);
+  background: #EAF6EF
+}
+
+.cupom-ok b {
+  display: block;
+  letter-spacing: .06em;
+  color: var(--verde)
+}
+
+.cupom-ok small {
+  color: var(--cinza)
+}
+
+.cupom-msg {
+  color: var(--vermelho)
+}
+
+.cupom-msg.ok {
+  color: var(--verde)
+}
+
+/* checkout: pontos */
+.pontos-box {
+  padding: 12px;
+  border-radius: var(--raio);
+  background: #FFF6D6
+}
+
+.pontos-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  font-weight: 700
+}
+
+.pontos-check input {
+  margin-top: 3px
+}
+
+.pontos-check small {
+  display: block;
+  font-weight: 400;
+  color: var(--cinza)
+}
+
+/* conta: meus pontos */
+.pontos-conta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start
+}
+
+.pontos-saldo {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 24px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff
+}
+
+.pontos-saldo .sobre {
+  color: var(--amarelo)
+}
+
+.pontos-saldo p {
+  color: rgba(255, 255, 255, .85)
+}
+
+.pontos-saldo b {
+  color: #fff
+}
+
+.pontos-num {
+  font: 800 clamp(3rem, 8vw, 4.4rem)/1 var(--titulo);
+  color: #fff !important
+}
+
+.pontos-num small {
+  font: 700 1rem var(--texto);
+  color: var(--amarelo)
+}
+
+.pontos-barra {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .18);
+  overflow: hidden
+}
+
+.pontos-barra i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--amarelo)
+}
+
+.pontos-regras,
+.pontos-extrato {
+  padding: 20px 22px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.pontos-regras h3,
+.pontos-extrato h3 {
+  margin-bottom: 10px;
+  font-size: 1.4rem
+}
+
+.pontos-regras ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  line-height: 1.5
+}
+
+.pontos-extrato ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid
+}
+
+.pontos-extrato li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--linha)
+}
+
+.pontos-extrato li:last-child {
+  border-bottom: 0
+}
+
+.pontos-extrato small {
+  display: block;
+  color: var(--cinza)
+}
+
+.pontos-extrato strong {
+  font: 800 1.3rem var(--titulo)
+}
+
+.pontos-extrato .mais {
+  color: var(--verde)
+}
+
+.pontos-extrato .menos {
+  color: var(--vermelho)
+}
+
+/* admin: cupons */
+.lin-cupom {
+  grid-template-columns: minmax(150px, 1.2fr) minmax(0, 1.4fr) minmax(120px, .8fr) auto auto
+}
+
+.cup-cod strong {
+  display: block;
+  font-size: 1.05rem;
+  letter-spacing: .05em
+}
+
+.cup-cod small,
+.cup-usos small {
+  display: block;
+  color: var(--cinza);
+  font-size: .82rem
+}
+
+.cup-regras {
+  font-size: .9rem
+}
+
+.cup-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px
+}
+
+.fid-resumo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px
+}
+
+.fid-resumo div {
+  padding: 14px 16px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.fid-resumo b {
+  display: block;
+  font: 800 1.6rem/1.1 var(--titulo)
+}
+
+.fid-resumo small {
+  color: var(--cinza)
+}
+
+@media (max-width:900px) {
+  .lin-cupom {
+    grid-template-columns: 1fr auto
+  }
+
+  .lin-cupom .cup-regras,
+  .lin-cupom .cup-usos {
+    grid-column: 1 / -1
+  }
+}
+
+@media (max-width:700px) {
+  .pontos-conta {
+    grid-template-columns: 1fr
+  }
+
+  .fid-resumo {
+    grid-template-columns: 1fr
   }
 }

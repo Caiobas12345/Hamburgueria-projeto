@@ -2,7 +2,8 @@
    PÃO NA CHAPA · Painel administrativo (#admin)
    Só aparece para quem tem papel "admin" (a segurança real está no banco: RLS).
    Seções: visão geral, pedidos, produtos, categorias, adicionais,
-   Explorar (campanhas), entrega, usuários (perfis e suspensão) e configurações.
+   Explorar (campanhas), entrega, cupons e pontos, usuários (perfis e suspensão)
+   e configurações.
 ===================================================================== */
 (function () {
   const PNC = window.PNC, E = PNC.estado, sb = PNC.sb, esc = PNC.esc, brl = PNC.brl;
@@ -20,6 +21,7 @@
     ['adicionais', 'Adicionais'],
     ['explorar', 'Explorar'],
     ['entrega', 'Entrega e taxas'],
+    ['cupons', 'Cupons e pontos'],
     ['usuarios', 'Usuários'],
     ['config', 'Configurações']
   ];
@@ -39,7 +41,7 @@
       <div class="adm-corpo" id="adm"><p class="carregando">Carregando...</p></div>
     </section>`;
     const alvo = $('#adm');
-    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, usuarios, config })[sec](alvo);
+    ({ visao, pedidos, produtos, categorias, adicionais, explorar, entrega, cupons, usuarios, config })[sec](alvo);
     contarAndamento();
   }
 
@@ -373,7 +375,7 @@
       <ul class="cp-itens">${itens.map(it => `<li><span><b>${it.quantidade}×</b> ${esc(it.nome)}${it.tamanho ? ' (' + esc(it.tamanho) + ')' : ''}${PNC.detalhesItem(it.adicionais, it.removidos, it.observacao)}</span><span>${brl(it.total)}</span></li>`).join('')}</ul>
       ${p.observacoes ? `<p class="cp-obs"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
       ${p.tipo === 'entrega' && p.entregador_id ? `<p class="cp-ent">Entregador: <b>${esc(nomesEnt[p.entregador_id] || '—')}</b>${p.tentativas_codigo >= 5 ? ' · <span class="cp-alerta">código errado 5 vezes: confirme a entrega com o cliente</span>' : ''}</p>` : ''}
-      <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}</span><strong>${brl(p.total)}</strong></div>
+      <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}${Number(p.desconto) > 0 ? ` · <em class="cp-desc">Cupom ${esc(p.cupom_codigo || '')} − ${brl(p.desconto)}</em>` : ''}${Number(p.desconto_pontos) > 0 ? ` · <em class="cp-desc">${Number(p.pontos_usados)} pontos − ${brl(p.desconto_pontos)}</em>` : ''}</span><strong>${brl(p.total)}</strong></div>
       <p class="cp-pag">${PNC.PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) + ' (devolver ' + brl(p.troco_para - p.total) + ')' : ''}</p>
       ${p.status === 'cancelado' && p.cancelado_motivo ? `<p class="cp-obs">Cancelado: ${esc(p.cancelado_motivo)}</p>` : ''}
       ${fim ? '' : `<div class="cp-acoes">${acoesAdmin(p).map(a => `<button type="button" class="btn amarelo" data-status="${a[0]}" data-id="${p.id}" data-valor="${esc(brl(p.total))}">${a[1]}</button>`).join('')}<button type="button" class="btn-texto" data-status="cancelado" data-id="${p.id}">Cancelar</button></div>
@@ -650,6 +652,143 @@
         const r = await sb.from('bairros').delete().eq('id', l.dataset.id);
         if (r.error) return ok(PNC.traduzErro(r.error.message));
         await atualizarSite(); entrega(el);
+      }
+    };
+  }
+
+  /* ===================================================================
+     CUPONS E PONTOS DE FIDELIDADE
+     Tudo passa pelas funções do banco (migração 004): elas conferem se quem
+     pede é administrador e validam os valores. Nenhum cupom vem pronto.
+  =================================================================== */
+  const TIPO_CUPOM = { percentual: 'Desconto em %', frete_gratis: 'Entrega grátis' };
+  const CAMPOS_CUPOM = [
+    { k: 'codigo', r: 'Código', obrig: true, ph: 'Ex.: BEMVINDO', dica: 'O que o cliente digita. Letras, números, - ou _, sem espaço.' },
+    { k: 'descricao', r: 'Descrição (aparece para o cliente)', ph: 'Ex.: 10% no primeiro pedido' },
+    { k: 'tipo', r: 'Tipo', t: 'select', op: [['percentual', 'Desconto em %'], ['frete_gratis', 'Entrega grátis']] },
+    { k: 'valor', r: 'Desconto (%)', t: 'numero', nulo: true, dica: 'Só para desconto em %. Ex.: 10' },
+    { k: 'desconto_maximo', r: 'Desconto máximo (R$)', t: 'dinheiro', nulo: true, dica: 'Vazio = sem limite' },
+    { k: 'pedido_minimo', r: 'Pedido mínimo (R$)', t: 'dinheiro', dica: 'Valor dos produtos. 0 = qualquer valor' },
+    { k: 'limite_total', r: 'Limite de usos no total', t: 'numero', nulo: true, dica: 'Vazio = sem limite' },
+    { k: 'limite_por_cliente', r: 'Usos por cliente', t: 'numero', nulo: true, dica: 'Vazio = sem limite' },
+    { k: 'inicio', r: 'Começa a valer em', t: 'data', dica: 'Vazio = já vale' },
+    { k: 'fim', r: 'Vale até', t: 'data', dica: 'Vazio = sem prazo' },
+    { k: 'so_primeiro_pedido', r: 'Só no primeiro pedido', t: 'bool', dica: 'Vale só para quem nunca fez pedido' },
+    { k: 'ativo', r: 'Cupom ativo', t: 'bool' }
+  ];
+
+  function regrasCupom(c) {
+    const r = [];
+    if (Number(c.pedido_minimo) > 0) r.push('mínimo ' + brl(c.pedido_minimo));
+    if (c.desconto_maximo) r.push('até ' + brl(c.desconto_maximo));
+    if (c.so_primeiro_pedido) r.push('só 1º pedido');
+    if (c.limite_por_cliente) r.push(c.limite_por_cliente === 1 ? '1 uso por cliente' : c.limite_por_cliente + ' usos por cliente');
+    if (c.fim) r.push('até ' + new Date(c.fim).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+    if (c.inicio && new Date(c.inicio) > new Date()) r.push('começa ' + new Date(c.inicio).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+    return r.join(' · ');
+  }
+
+  function situacaoCupom(c) {
+    if (!c.ativo) return '<span class="st cancelado">Desativado</span>';
+    if (c.fim && new Date(c.fim) <= new Date()) return '<span class="st cancelado">Expirado</span>';
+    if (c.limite_total && c.usos >= c.limite_total) return '<span class="st cancelado">Esgotado</span>';
+    if (c.inicio && new Date(c.inicio) > new Date()) return '<span class="st andamento">Agendado</span>';
+    return '<span class="st feito">Ativo</span>';
+  }
+
+  async function cupons(el) {
+    const [{ data: lista, error }, { data: fid, error: e2 }, { data: resumo }] = await Promise.all([
+      sb.rpc('admin_listar_cupons'),
+      sb.from('fidelidade_config').select('*').eq('id', 1).maybeSingle(),
+      sb.rpc('admin_resumo_fidelidade')
+    ]);
+    if (error || e2) return erro(el, error || e2);
+    const f = fid || {};
+    const camposFid = [
+      { k: 'ativo', r: 'Programa de pontos ligado', t: 'bool', largo: true, dica: 'Desligado: ninguém ganha nem usa pontos, mas os saldos ficam guardados.' },
+      { k: 'pontos_por_real', r: 'Pontos por real gasto', t: 'dinheiro', nulo: true, dica: 'Sobre os produtos, sem a taxa de entrega. Ex.: 1' },
+      { k: 'pontos_para_resgate', r: 'Pontos para trocar', t: 'numero', nulo: true, dica: 'Tamanho de cada troca. Ex.: 100' },
+      { k: 'valor_resgate', r: 'Desconto por troca (R$)', t: 'dinheiro', nulo: true, dica: 'Quanto vale cada troca. Ex.: 5' }
+    ];
+    const r = resumo || {};
+    el.innerHTML = `<div class="adm-cab"><div><p class="sobre">Promoções</p><h1>Cupons e pontos</h1></div><button type="button" class="btn amarelo" data-novo-cupom>+ Novo cupom</button></div>
+      <div class="tabela cupons-tab">${(lista || []).length ? lista.map(c => `<div class="lin lin-cupom" data-id="${c.id}">
+          <div class="cup-cod"><strong>${esc(c.codigo)}</strong><small>${c.tipo === 'percentual' ? esc(String(Number(c.valor)).replace('.', ',')) + '% de desconto' : 'Entrega grátis'}${c.descricao ? ' · ' + esc(c.descricao) : ''}</small></div>
+          <div class="cup-regras">${esc(regrasCupom(c)) || '<span class="sm">Sem restrições</span>'}</div>
+          <div class="cup-usos"><b>${Number(c.usos)}${c.limite_total ? ' / ' + c.limite_total : ''}</b><small>${Number(c.usos) === 1 ? 'uso' : 'usos'} · ${brl(c.desconto_total)} em desconto</small></div>
+          <div>${situacaoCupom(c)}</div>
+          <div class="cup-acoes"><button type="button" class="btn linha pequeno" data-editar-cupom="${c.id}">Editar</button>
+            <button type="button" class="btn-texto" data-ativar-cupom="${c.id}" data-ativo="${c.ativo ? '1' : ''}">${c.ativo ? 'Desativar' : 'Ativar'}</button></div>
+        </div>`).join('') : '<p class="aviso-vazio">Nenhum cupom criado. Clique em "+ Novo cupom" para criar o primeiro.</p>'}</div>
+
+      <div class="adm-cab menor"><div><h2>Pontos de fidelidade</h2><p class="sm">O cliente ganha pontos quando o pedido é entregue e troca por desconto no checkout. Pedido cancelado devolve os pontos usados.</p></div></div>
+      ${f.ativo || Number(r.pontos_ganhos) > 0 ? `<div class="fid-resumo">
+        <div><b>${Number(r.clientes_com_pontos || 0)}</b><small>${Number(r.clientes_com_pontos) === 1 ? 'cliente com pontos' : 'clientes com pontos'}</small></div>
+        <div><b>${Number(r.pontos_em_aberto || 0)}</b><small>pontos guardados</small></div>
+        <div><b>${brl(r.desconto_dado || 0)}</b><small>de desconto em pontos</small></div></div>` : ''}
+      <form class="painel-bloco grid-end" id="formFid" novalidate>${camposFid.map(c => campo(c, f[c.k])).join('')}
+        <p class="sm g2" id="fidExemplo"></p>
+        <p class="msg erro g2" id="fidMsg" hidden></p>
+        <div class="g2"><button class="btn amarelo" type="submit">Salvar programa de pontos</button></div></form>`;
+
+    const formFid = $('#formFid');
+    const exemplo = () => {
+      const d = lerForm(formFid, camposFid);
+      const t = $('#fidExemplo');
+      if (!d.pontos_por_real || !d.pontos_para_resgate || !d.valor_resgate) { t.textContent = 'Preencha os três valores para ver um exemplo.'; return; }
+      const ganho = Math.floor(50 * d.pontos_por_real);
+      const pedidos = Math.ceil(d.pontos_para_resgate / Math.max(1, ganho));
+      t.innerHTML = `Exemplo: um pedido de ${brl(50)} em produtos dá <b>${ganho} pontos</b>. Com <b>${d.pontos_para_resgate} pontos</b> (cerca de ${pedidos} ${pedidos === 1 ? 'pedido' : 'pedidos'} desse valor) o cliente troca por <b>${brl(d.valor_resgate)}</b> de desconto.`;
+    };
+    formFid.addEventListener('input', exemplo);
+    formFid.addEventListener('change', exemplo);
+    exemplo();
+    formFid.addEventListener('submit', async e => {
+      e.preventDefault();
+      const d = lerForm(formFid, camposFid);
+      const m = $('#fidMsg');
+      const { error: er } = await sb.rpc('admin_salvar_fidelidade', {
+        p_ativo: d.ativo, p_pontos_por_real: d.pontos_por_real,
+        p_pontos_para_resgate: d.pontos_para_resgate == null ? null : Math.round(d.pontos_para_resgate), p_valor_resgate: d.valor_resgate
+      });
+      if (er) { m.textContent = PNC.traduzErro(er.message); m.hidden = false; return; }
+      m.hidden = true;
+      ok(d.ativo ? 'Programa de pontos salvo e ligado.' : 'Programa de pontos salvo (desligado).');
+      cupons(el);
+    });
+
+    const editarCupom = c => abrirForm({
+      titulo: c ? 'Editar cupom ' + c.codigo : 'Novo cupom',
+      campos: CAMPOS_CUPOM,
+      valores: c || { tipo: 'percentual', pedido_minimo: 0, limite_por_cliente: 1, ativo: true },
+      salvar: async d => {
+        const { error: er } = await sb.rpc('admin_salvar_cupom', {
+          p_id: c ? c.id : null, p_codigo: d.codigo, p_descricao: d.descricao, p_tipo: d.tipo,
+          p_valor: d.tipo === 'frete_gratis' ? 0 : d.valor, p_desconto_maximo: d.desconto_maximo, p_pedido_minimo: d.pedido_minimo,
+          p_so_primeiro_pedido: d.so_primeiro_pedido,
+          p_limite_total: d.limite_total == null ? null : Math.round(d.limite_total),
+          p_limite_por_cliente: d.limite_por_cliente == null ? null : Math.round(d.limite_por_cliente),
+          p_inicio: d.inicio, p_fim: d.fim, p_ativo: d.ativo
+        });
+        if (er) throw er;
+        ok(c ? 'Cupom atualizado.' : 'Cupom criado.');
+        cupons(el);
+      }
+    });
+
+    el.onclick = async e => {
+      if (e.target.closest('[data-novo-cupom]')) return editarCupom(null);
+      const ed = e.target.closest('[data-editar-cupom]');
+      if (ed) return editarCupom((lista || []).find(c => String(c.id) === ed.dataset.editarCupom));
+      const at = e.target.closest('[data-ativar-cupom]');
+      if (at) {
+        const ligar = !at.dataset.ativo;
+        if (!ligar && !confirm('Desativar este cupom? Quem tentar usar vai ver que ele não está mais ativo.')) return;
+        at.disabled = true;
+        const { error: er } = await sb.rpc('admin_ativar_cupom', { p_id: Number(at.dataset.ativarCupom), p_ativo: ligar });
+        if (er) { at.disabled = false; return ok(PNC.traduzErro(er.message)); }
+        ok(ligar ? 'Cupom ativado.' : 'Cupom desativado.');
+        cupons(el);
       }
     };
   }
