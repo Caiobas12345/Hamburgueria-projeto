@@ -90,6 +90,7 @@
         await carregarPerfil();
         S.pronto = true;
         limparUrl();
+        if (PNC.notif) PNC.notif.sessao(S.user);
         atualizarTopo();
 
         if (evento === 'PASSWORD_RECOVERY') { location.hash = 'nova-senha'; return; }
@@ -869,6 +870,10 @@
                 <p class="sm">Informe este código ao entregador só quando receber o pedido. Ele também pode ler o QR code.</p></div>
               ${PNC.qrSvg ? PNC.qrSvg('PNC:' + p.codigo + ':' + p.codigo_entrega, 'QR code do código de entrega') : ''}
             </div>` : ''}
+            ${p.tipo === 'entrega' && p.status === 'saiu_entrega' ? `<section class="mapa-entrega" id="mapaEntrega" aria-label="Onde está o entregador">
+              <p class="sobre">Onde está o entregador</p>
+              <p class="sm mapa-info" id="mapaInfo">Procurando a localização do entregador...</p>
+              <div class="mapa-box" id="mapaBox" hidden></div></section>` : ''}
             ${podeAvaliar ? (minhaAv ? avaliacaoFeita(minhaAv, notasAv, itens || [], temEntregador ? ent : null) : formAvaliacao(p, itens || [], temEntregador ? ent : null)) : ''}
             ${temEntregador && p.status !== 'cancelado' ? PNC.cartaoEntregador(ent, p.status === 'entregue' ? 'Quem entregou' : 'Seu entregador') : ''}
             ${p.mensagem_cliente ? `<div class="recado"><small>Mensagem da hamburgueria</small><p>${esc(p.mensagem_cliente)}</p></div>` : ''}
@@ -897,16 +902,87 @@
     };
 
     await desenhar();
-    avalAtual = { id, redesenhar: desenhar };
+    if ($('#mapaEntrega')) acompanharMapa(id); else pararMapa();
+    avalAtual = { id, redesenhar: async () => { await desenhar(); if ($('#mapaEntrega')) acompanharMapa(id); } };
     if (terminado) return; // entregue ou cancelado: não precisa ficar atualizando
 
     /* atualização automática: em tempo real (Supabase Realtime) e, por garantia, a cada 30 s.
        Cada abertura usa um canal com nome próprio: reabrir o mesmo pedido antes do canal
        anterior terminar de fechar não pode quebrar a página. */
-    pollPedido = setInterval(desenhar, 30000);
+    const redesenhar = async () => { await desenhar(); if ($('#mapaEntrega')) acompanharMapa(id); else pararMapa(); };
+    pollPedido = setInterval(redesenhar, 30000);
     canalPedido = PNC.canal('pedido-' + id, c => c
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: 'id=eq.' + id }, () => desenhar()));
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos', filter: 'id=eq.' + id }, () => redesenhar()));
   };
+
+  /* ---------- MAPA DO ENTREGADOR (migração 008) ----------
+     Só aparece com o pedido "saiu para entrega". O mapa (Leaflet + OpenStreetMap)
+     é carregado só quando precisa; sem ele, fica o link para abrir no mapa. */
+  let mapa = { id: 0, timer: 0, loc: null, map: null, marker: null };
+  let leafletP = null;
+  function carregarLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (!leafletP) leafletP = new Promise((ok, falha) => {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet'; css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+      css.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY='; css.crossOrigin = '';
+      document.head.appendChild(css);
+      const js = document.createElement('script');
+      js.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+      js.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo='; js.crossOrigin = '';
+      js.onload = () => (window.L ? ok(window.L) : falha(new Error('mapa')));
+      js.onerror = () => { leafletP = null; falha(new Error('mapa')); };
+      document.head.appendChild(js);
+    });
+    return leafletP;
+  }
+  function pararMapa() {
+    clearInterval(mapa.timer);
+    mapa = { id: 0, timer: 0, loc: null, map: null, marker: null };
+  }
+  function acompanharMapa(id) {
+    if (mapa.id !== id) { pararMapa(); mapa.id = id; mapa.timer = setInterval(() => buscarLocal(id), 15000); }
+    mapa.map = null; mapa.marker = null; // a página foi redesenhada: o mapa é montado de novo
+    if (mapa.loc) mostrarLocal();
+    buscarLocal(id);
+  }
+  async function buscarLocal(id) {
+    if (!$('#mapaEntrega') || mapa.id !== id) return pararMapa();
+    const { data, error } = await sb.rpc('localizacao_do_pedido', { p_pedido: id });
+    if (mapa.id !== id || !$('#mapaEntrega')) return;
+    if (error) { $('#mapaEntrega').hidden = true; return pararMapa(); } // migração 008 ainda não rodada
+    mapa.loc = data || null;
+    mostrarLocal();
+  }
+  async function mostrarLocal() {
+    const info = $('#mapaInfo'), box = $('#mapaBox'), l = mapa.loc;
+    if (!info) return;
+    if (!l) {
+      info.textContent = 'A localização aparece aqui quando o entregador estiver a caminho com o painel aberto.';
+      box.hidden = true;
+      return;
+    }
+    const min = Math.max(0, Math.round((Date.now() - new Date(l.atualizado_em).getTime()) / 60000));
+    info.innerHTML = `Atualizado ${min < 1 ? 'agora há pouco' : 'há ' + min + ' min'} · <a href="https://www.google.com/maps/search/?api=1&query=${Number(l.lat)},${Number(l.lng)}" target="_blank" rel="noopener">abrir no mapa</a>`;
+    box.hidden = false;
+    try {
+      const L = await carregarLeaflet();
+      const caixaAtual = $('#mapaBox');
+      if (!caixaAtual || !mapa.loc) return;
+      const ponto = [Number(mapa.loc.lat), Number(mapa.loc.lng)];
+      if (!mapa.map || mapa.map.getContainer() !== caixaAtual) {
+        mapa.map = L.map(caixaAtual, { scrollWheelZoom: false }).setView(ponto, 15);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa.map);
+        mapa.marker = L.marker(ponto, { icon: L.divIcon({ className: 'pino-ent', html: '<span></span>', iconSize: [28, 28], iconAnchor: [14, 14] }), title: 'Entregador', alt: 'Entregador' }).addTo(mapa.map);
+      } else {
+        mapa.marker.setLatLng(ponto);
+        mapa.map.panTo(ponto);
+      }
+    } catch (er) {
+      const b = $('#mapaBox');
+      if (b) b.hidden = true; // sem o mapa, fica o link "abrir no mapa"
+    }
+  }
 
   /* ---------- AVALIAÇÃO DO PEDIDO ---------- */
   const ROT_NOTA = ['', 'Ruim', 'Regular', 'Bom', 'Muito bom', 'Excelente'];
@@ -1520,6 +1596,13 @@
     a.hidden = !txt;
     a.textContent = txt;
     document.documentElement.style.setProperty('--aviso-h', txt ? a.offsetHeight + 'px' : '0px');
+    // a fonte termina de carregar depois e a frase pode quebrar em 2 linhas no celular: mede de novo
+    if (!montarAviso.obs && window.ResizeObserver) {
+      montarAviso.obs = new ResizeObserver(() => {
+        if (!a.hidden) document.documentElement.style.setProperty('--aviso-h', a.offsetHeight + 'px');
+      });
+      montarAviso.obs.observe(a);
+    }
   }
 
   function montarRodape() {
@@ -1595,7 +1678,7 @@
     else if (d.addRapido) adicionarRapido(Number(d.addRapido));
     else if (d.repetir) { t.disabled = true; await repetirPedido(Number(d.repetir)); t.disabled = false; }
     else if (d.copiarLink) { try { await navigator.clipboard.writeText(d.copiarLink); toast('Link copiado. É só colar e enviar.'); } catch (er) { toast(d.copiarLink); } }
-    else if (d.sair !== undefined) { await sb.auth.signOut(); toast('Você saiu da conta.'); location.hash = 'inicio'; }
+    else if (d.sair !== undefined) { if (PNC.notif) await PNC.notif.antesDeSair(); await sb.auth.signOut(); toast('Você saiu da conta.'); location.hash = 'inicio'; }
     else if (d.google !== undefined) entrarComGoogle();
     else if (d.fav) {
       if (!S.user) return pedirLogin('Entre na sua conta para salvar seus favoritos.', location.hash);
@@ -1689,6 +1772,7 @@
     /* limpa o que a página anterior deixou ligado */
     if (canalPedido) { try { sb.removeChannel(canalPedido); } catch (e) { } canalPedido = null; }
     clearInterval(pollPedido);
+    pararMapa();
     if (PNC.admin && PNC.admin.sair) PNC.admin.sair();
     if (PNC.cozinha && PNC.cozinha.sair) PNC.cozinha.sair();
     if (PNC.entregador && PNC.entregador.sair) PNC.entregador.sair();

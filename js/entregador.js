@@ -23,6 +23,63 @@
   let assinatura = {};
   let leitor = null;
 
+  /* ---------- localização para o cliente (migração 008) ----------
+     Só nas entregas "a caminho", só com o painel aberto, e o banco apaga
+     quando a entrega termina. */
+  const LOCAL_MS = 15000;
+  let local = { estado: 'parado', watch: null, ultimo: 0, pos: null };
+  const aCaminho = () => ((dados && dados.minhas) || []).filter(p => p.status === 'saiu_entrega');
+  function enviarLocal(forcar) {
+    if (!local.pos || !aCaminho().length || (!forcar && Date.now() - local.ultimo < LOCAL_MS)) return;
+    local.ultimo = Date.now();
+    const c = local.pos.coords;
+    aCaminho().forEach(p => sb.rpc('entregador_enviar_local', { p_pedido: Number(p.id), p_lat: c.latitude, p_lng: c.longitude, p_precisao: Math.round(c.accuracy || 0) }).then(() => { }, () => { }));
+  }
+  function mudarLocal(estado) {
+    if (local.estado === estado) return;
+    local.estado = estado;
+    assinatura.entMinhas = null; // redesenha o aviso no cartão
+    if ($('#entMinhas')) desenharEntregas();
+  }
+  function ligarLocal() {
+    if (!navigator.geolocation) return mudarLocal('indisponivel');
+    if (local.watch != null) return;
+    local.watch = navigator.geolocation.watchPosition(pos => {
+      const primeira = !local.pos;
+      local.pos = pos;
+      mudarLocal('ativo');
+      enviarLocal(primeira);
+    }, err => {
+      pararWatch();
+      mudarLocal(err && err.code === 1 ? 'negado' : 'erro');
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  }
+  function pararWatch() {
+    if (local.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(local.watch);
+    local.watch = null;
+    local.pos = null;
+  }
+  function desligarLocal() {
+    aCaminho().forEach(p => sb.rpc('entregador_parar_local', { p_pedido: Number(p.id) }).then(() => { }, () => { }));
+    pararWatch();
+    mudarLocal('parado');
+  }
+  /* depois de cada atualização: liga sozinho se a permissão já foi dada; desliga sem entregas a caminho */
+  async function conferirLocal() {
+    if (!aCaminho().length) { if (local.watch != null) { pararWatch(); local.estado = 'parado'; } return; }
+    if (local.watch != null || local.estado === 'parado_pelo_entregador') return;
+    try {
+      const st = navigator.permissions && await navigator.permissions.query({ name: 'geolocation' });
+      if (st && st.state === 'granted') ligarLocal();
+    } catch (e) { }
+  }
+  function avisoLocal() {
+    if (local.estado === 'ativo') return `<div class="ent-local on"><span><i></i> O cliente está vendo onde você está.</span><button type="button" class="btn-texto" data-ent-local="parar">Parar</button></div>`;
+    if (local.estado === 'negado') return '<p class="ent-local">A localização está bloqueada neste celular. Libere nas configurações do navegador para o cliente acompanhar a entrega.</p>';
+    if (local.estado === 'indisponivel') return '<p class="ent-local">Este navegador não compartilha localização.</p>';
+    return `<div class="ent-local"><span>${local.estado === 'erro' ? 'Não foi possível pegar a localização agora.' : 'O cliente pode acompanhar a entrega no mapa.'}</span><button type="button" class="btn linha pequeno" data-ent-local="ligar">Compartilhar localização</button></div>`;
+  }
+
   const minutosDesde = d => { const t = new Date(d).getTime(); return isNaN(t) ? null : Math.max(0, Math.floor((Date.now() - t) / 60000)); };
   const hora = d => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
   const mesAno = d => new Date(d).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' }).replace('.', '');
@@ -98,6 +155,8 @@
   function sair() {
     clearInterval(timer);
     timer = 0;
+    pararWatch();
+    local.estado = 'parado';
     fecharLeitor();
     const app = $('#app');
     if (app) { app.onclick = app.onsubmit = app.onchange = app.oninput = null; }
@@ -113,6 +172,8 @@
     const nome = (dados.perfil.nome || '').split(' ')[0];
     $('#entOla').textContent = aba === 'perfil' ? 'Meu perfil' : nome ? 'Olá, ' + nome : 'Entregas';
     if (aba === 'perfil') desenharPerfil(); else desenharEntregas();
+    conferirLocal();
+    enviarLocal(false);
   }
 
   /* ===================================================================
@@ -150,8 +211,8 @@
       ${p.observacoes ? `<p class="coz-obs-ped"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
       ${!saiu ? `<div class="ent-acoes"><button type="button" class="btn amarelo largo" data-ent-sair="${Number(p.id)}">Saí para entrega</button>
           <button type="button" class="btn-texto" data-ent-devolver="${Number(p.id)}">Devolver entrega</button></div>`
-        : p.bloqueado ? '<p class="msg erro">Muitos códigos errados. Peça para a loja confirmar esta entrega.</p>'
-          : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
+        : p.bloqueado ? avisoLocal() + '<p class="msg erro">Muitos códigos errados. Peça para a loja confirmar esta entrega.</p>'
+          : avisoLocal() + `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
             <label for="cod${Number(p.id)}">Código de entrega <small>Peça ao cliente os 4 números que aparecem no pedido dele.</small></label>
             <div class="ent-codigo-linha">
               <input class="campo" id="cod${Number(p.id)}" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required>
@@ -460,7 +521,10 @@
     }
     const saiu = t.closest('[data-ent-sair]');
     if (saiu) {
-      if (await rpc('entregador_sair', { p_pedido: Number(saiu.dataset.entSair) }, saiu)) PNC.toast('Boa entrega! O cliente foi avisado que você está a caminho.');
+      if (await rpc('entregador_sair', { p_pedido: Number(saiu.dataset.entSair) }, saiu)) {
+        PNC.toast('Boa entrega! O cliente foi avisado que você está a caminho.');
+        if (local.estado !== 'parado_pelo_entregador') ligarLocal();
+      }
       return carregar();
     }
     const dev = t.closest('[data-ent-devolver]');
@@ -468,6 +532,12 @@
       if (!confirm('Devolver esta entrega? Ela volta para a lista de disponíveis.')) return;
       if (await rpc('entregador_devolver', { p_pedido: Number(dev.dataset.entDevolver) }, dev)) PNC.toast('Entrega devolvida.');
       return carregar();
+    }
+    const lc = t.closest('[data-ent-local]');
+    if (lc) {
+      if (lc.dataset.entLocal === 'ligar') { local.estado = 'parado'; ligarLocal(); }
+      else { desligarLocal(); local.estado = 'parado_pelo_entregador'; assinatura.entMinhas = null; desenharEntregas(); }
+      return;
     }
     const ler = t.closest('[data-ent-ler]');
     if (ler) return abrirLeitor(ler.dataset.entLer);

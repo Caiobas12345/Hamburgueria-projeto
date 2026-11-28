@@ -38,6 +38,7 @@ Arquivo	O que faz
 005_avaliacoes.sql	Avaliações depois da entrega: nota e comentário do pedido, estrelas por produto e para o entregador, com aprovação no painel
 006_estoque_relatorios.sql	Estoque por produto (baixa no pedido, devolução no cancelamento, histórico) e relatórios de vendas
 007_extras.sql	Pedido agendado, gorjeta para o entregador, foto de perfil do cliente e indique e ganhe
+008_notificacoes_localizacao.sql	Notificações (sino no site e celular) e localização do entregador para o cliente
 Perfis e permissões
 Cliente: perfil de todo cadastro novo. Faz pedidos, salva endereços e favoritos.
 Entregador e Cozinha: o administrador muda no painel (Usuários > Alterar perfil).
@@ -78,6 +79,16 @@ Pedido agendado (Configurações → Horários → "Aceitar pedidos agendados"):
 Gorjeta (Configurações → Pagamento → "Gorjeta para o entregador"): só em pedidos com entrega, valor livre até R$ 200. Entra no total do pedido, aparece para o entregador e fica fora do faturamento nos relatórios.
 Foto de perfil: o cliente troca a própria foto em Minha conta (fica na pasta clientes/<id> do Storage). Ela aparece no topo do site e na conta. O entregador não vê.
 Indique e ganhe (Cupons e pontos → Indique e ganhe): cada cliente tem um código e um link. Quem chega pelo link (ou digita o código antes do 1º pedido) ganha o desconto em % no primeiro pedido (não junta com cupom). Quem indicou ganha os pontos quando esse pedido é entregue. Se o 1º pedido for cancelado, o desconto vale no próximo.
+Notificações e localização (Etapa 8B)
+Sino no topo: o banco cria os avisos sozinho (pedido novo, mudança de etapa, recado da loja, entrega disponível, avaliação para aprovar, lembrete de pedido agendado 30 min antes). Cada conta só vê os seus. Na equipe (admin, cozinha, entregador) toca um som quando chega aviso com o site aberto.
+Celular com o site fechado: no sino, "Ativar notificações neste aparelho". Android: direto no Chrome. iPhone (iOS 16.4+): só com o site instalado (Safari → Compartilhar → Adicionar à Tela de Início). Peças: sw.js (recebe), supabase/functions/enviar-push/index.ts (envia), chave pública em js/config.js. Configuração única no Supabase:
+Gere as chaves em ferramentas/gerar-chaves-push.html (no seu navegador; nada é enviado).
+Chave pública em js/config.js → vapidPublica.
+Edge Functions → Deploy a new function → Via Editor → nome enviar-push → cole o index.ts → Deploy. Nos detalhes da função, desligue Verify JWT (a função confere o próprio segredo).
+Edge Functions → Secrets: VAPID_PUBLICA, VAPID_PRIVADA, VAPID_EMAIL, PUSH_SEGREDO.
+Database → Webhooks → novo: tabela notificacoes, evento Insert, tipo Supabase Edge Functions, função enviar-push, cabeçalho x-pnc-segredo = o mesmo PUSH_SEGREDO. A chave privada e o segredo nunca vão para o site nem para o GitHub.
+Localização do entregador: quando ele toca em "Saí para entrega", o celular pede permissão e passa a enviar a posição a cada 15 s enquanto o painel está aberto. Só o cliente daquele pedido (e o admin) vê, num mapa (OpenStreetMap). O entregador pode parar quando quiser, e a posição é apagada quando o pedido termina.
+Lembrete de agendado: usa a extensão pg_cron (a 008 tenta ligar sozinha). Se não ligar, ative em Database → Extensions → pg_cron e rode a 008 de novo.
 O que fica no painel (nada é inventado no código)
 Pedidos: endereço, telefone, itens, adicionais, troco; mudar status e mandar recado ao cliente. Pedido novo toca um aviso e a lista se atualiza sozinha.
 Produtos: preço, promoção (com data final), tamanhos, ingredientes, o que pode retirar, adicionais permitidos, fotos, disponível/esgotado, destaque, novidade.
