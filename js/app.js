@@ -20,6 +20,7 @@
     mais: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     menos: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
     lixo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    carrinho: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 001.5 1.2h8.4a1.5 1.5 0 001.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="16.5" cy="19.5" r="1.4"/></svg>',
     coracao: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.4A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>',
     chama: '<svg viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1c1.6 6.2-2.8 8.9-4.9 13.2C9.6 17.4 10 21 12.4 23c-.3-2.9.9-5.2 3.2-6.9-.2 3.3 1.5 5.4 3.4 7.2 1.9 1.8 2.6 4.5 1.4 6.9 3-1.3 5.1-4.1 5.2-7.6.1-2.6-.9-4.9-2.3-6.9.9 2.4.6 4.3-.8 5.6C23.6 14.6 21.3 6 16 1zM5.5 19.5C3.9 22 3 24.6 3 27.3 3 34.3 8.8 39 16 39s13-4.7 13-11.7c0-1.3-.2-2.5-.6-3.7-.4 5.6-5.6 9.4-12.4 9.4S4.6 30 4.3 25.1c-.1-1.9.3-3.8 1.2-5.6z"/></svg>',
     whats: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1112 20a8 8 0 01-4-1.1z"/><path d="M9 9.5c.3 1.9 2.6 4.2 4.5 4.5l1-1.2 1.8.8-.4 1.6c-3 .4-7.4-4-7-7l1.6-.4.8 1.8z"/></svg>',
@@ -226,10 +227,15 @@
       p.novidade ? '<i class="selo">Novidade</i>' : '',
       !p.disponivel ? '<i class="selo esgotado">Esgotado</i>' : ''
     ].join('');
-    return `<button type="button" class="pc${p.disponivel ? '' : ' off'}" data-produto="${p.id}">
+    const fav = S.favs.has(p.id);
+    return `<div class="pc${p.disponivel ? '' : ' off'}">
+      <button type="button" class="pc-abrir" data-produto="${p.id}">
       <span class="pc-img">${foto ? `<img src="${esc(foto)}" alt="" loading="lazy" decoding="async">` : `<span class="sem-foto">${ICON.chama}</span>`}<span class="selos">${selos}</span></span>
       <span class="pc-info"><strong>${esc(p.nome)}</strong>${notaProduto(p) ? `<span class="pc-nota" aria-label="Nota ${fmtNota(notaProduto(p).media)} de 5, ${notaProduto(p).total} ${notaProduto(p).total === 1 ? 'avaliação' : 'avaliações'}"><b>★</b> ${fmtNota(notaProduto(p).media)} <small>(${notaProduto(p).total})</small></span>` : ''}${precoHTML(p)}</span>
-    </button>`;
+      </button>
+      <button type="button" class="pc-fav${fav ? ' on' : ''}" data-fav="${p.id}" aria-pressed="${fav}" aria-label="${fav ? 'Remover dos favoritos' : 'Favoritar'}: ${esc(p.nome)}">${ICON.coracao}</button>
+      ${p.disponivel ? `<button type="button" class="pc-add" data-add-rapido="${p.id}" aria-label="Adicionar ao carrinho: ${esc(p.nome)}">${ICON.carrinho}</button>` : ''}
+    </div>`;
   }
   PNC.cartaoProduto = cartaoProduto;
 
@@ -272,7 +278,6 @@
         <p class="hero-sub">${esc(c.banner_texto || 'Hambúrgueres, porções, bebidas, sobremesas e combos.')}</p>
         <div class="botoes">
           <a class="btn amarelo" href="#cardapio">Ver cardápio</a>
-          ${zap ? `<a class="btn vidro" href="${zap}" target="_blank" rel="noopener">${ICON.whats} Chamar no WhatsApp</a>` : `<a class="btn vidro" href="#categoria/combos">Ver combos</a>`}
         </div>
       </div>
     </section>`;
@@ -1183,7 +1188,8 @@
           </div>
           <div class="prod-rodape">
             ${p.disponivel ? `<div class="qtd"><button type="button" data-pq="-1" aria-label="Diminuir">${ICON.menos}</button><span id="pQtd">1</span><button type="button" data-pq="1" aria-label="Aumentar">${ICON.mais}</button></div>
-            <button class="btn amarelo" type="submit" data-foco>Adicionar <span id="pTotal"></span></button>` : '<p class="esgotado-txt">Esgotado no momento</p>'}
+            <button class="btn linha" type="submit">Adicionar ao carrinho</button>
+            <button class="btn amarelo btn-comprar" type="button" data-comprar data-foco>Comprar agora <span id="pTotal"></span></button>` : '<p class="esgotado-txt">Esgotado no momento</p>'}
           </div>
         </form>
       </div>`, 'janela-produto');
@@ -1201,17 +1207,22 @@
       return item;
     };
     form.addEventListener('change', calcular);
-    form.addEventListener('click', e => {
-      const b = e.target.closest('[data-pq]');
-      if (b) { qtd = Math.max(1, Math.min(p.controla_estoque ? Math.max(1, Number(p.estoque)) : 50, 50, qtd + Number(b.dataset.pq))); calcular(); }
-    });
-    form.addEventListener('submit', e => {
-      e.preventDefault();
+    const colocarNoCarrinho = () => {
       const item = calcular();
       item.removidos = $$('[name=rem]:checked', form).map(x => x.value);
       item.obs = (form.querySelector('[name=obs]') || { value: '' }).value.trim();
       PNC.carrinho.adicionar(item);
       fecharJanela();
+    };
+    form.addEventListener('click', e => {
+      const b = e.target.closest('[data-pq]');
+      if (b) { qtd = Math.max(1, Math.min(p.controla_estoque ? Math.max(1, Number(p.estoque)) : 50, 50, qtd + Number(b.dataset.pq))); calcular(); }
+      /* Comprar agora: põe no carrinho e vai direto para finalizar o pedido */
+      if (e.target.closest('[data-comprar]')) { colocarNoCarrinho(); irParaCheckout(); }
+    });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      colocarNoCarrinho();
       toast(p.nome + ' adicionado ao carrinho.', { href: '#carrinho', txt: 'Ver carrinho' });
     });
     calcular();
@@ -1295,13 +1306,44 @@
   btnMenu.addEventListener('click', () => menu(menuCel.hidden));
   menuCel.addEventListener('click', e => { if (e.target.closest('a')) menu(false); });
 
-  addEventListener('scroll', () => atualizarTopo(), { passive: true });
+  /* cabeçalho some ao rolar para baixo e volta ao rolar para cima */
+  let ultimoY = scrollY;
+  function esconderTopo() {
+    const y = Math.max(0, scrollY);
+    const b = document.body;
+    let esconder = b.classList.contains('topo-oculto');
+    if (y < 120 || !menuCel.hidden || b.classList.contains('travado') || topo.contains(document.activeElement)) { esconder = false; ultimoY = y; }
+    else if (y > ultimoY + 8) { esconder = true; ultimoY = y; }
+    else if (y < ultimoY - 8) { esconder = false; ultimoY = y; }
+    b.classList.toggle('topo-oculto', esconder);
+  }
+  addEventListener('scroll', () => { atualizarTopo(); esconderTopo(); }, { passive: true });
+  topo.addEventListener('focusin', () => document.body.classList.remove('topo-oculto'));
+
+  /* finalizar pedido: pede login antes, se precisar */
+  function irParaCheckout() {
+    S.user ? (location.hash = 'checkout') : pedirLogin('Entre ou crie sua conta para finalizar o pedido. Seu carrinho continua salvo.', '#checkout');
+  }
+
+  /* carrinho do cartão: adiciona 1 unidade sem abrir a janela.
+     Se o produto tem tamanho para escolher, abre a janela. */
+  function adicionarRapido(id) {
+    const p = PNC.produto(id);
+    if (!p || !p.disponivel) return;
+    if (PNC.tamanhos(p).length) return abrirProduto(id);
+    if (p.controla_estoque) {
+      const noCarrinho = PNC.carrinho.itens().filter(i => Number(i.produto_id) === p.id).reduce((s, i) => s + i.qtd, 0);
+      if (noCarrinho >= Number(p.estoque)) return toast('Só temos ' + Number(p.estoque) + ' de ' + p.nome + ' no momento, e já estão no seu carrinho.');
+    }
+    PNC.carrinho.adicionar({ produto_id: p.id, qtd: 1 });
+    toast(p.nome + ' adicionado ao carrinho.', { href: '#carrinho', txt: 'Ver carrinho' });
+  }
 
   /* ===================================================================
      CLIQUES E FORMULÁRIOS (delegação)
   =================================================================== */
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-apagar-end],[data-copiar],[data-rolar],[data-cancelar-pedido]');
+    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-add-rapido],[data-apagar-end],[data-copiar],[data-rolar],[data-cancelar-pedido]');
     if (!t) return;
     const d = t.dataset;
 
@@ -1310,17 +1352,27 @@
     else if (d.foto) { $('#fotoPrincipal').src = d.foto; $$('.miniaturas button').forEach(b => b.classList.toggle('on', b === t)); }
     else if (d.qtd) { const i = PNC.carrinho.itens().find(x => x.k === d.qtd); if (i) PNC.carrinho.quantidade(d.qtd, i.qtd + Number(d.d)); }
     else if (d.remover) PNC.carrinho.remover(d.remover);
-    else if (d.finalizar !== undefined) { S.user ? (location.hash = 'checkout') : pedirLogin('Entre ou crie sua conta para finalizar o pedido. Seu carrinho continua salvo.', '#checkout'); }
+    else if (d.finalizar !== undefined) irParaCheckout();
+    else if (d.addRapido) adicionarRapido(Number(d.addRapido));
     else if (d.sair !== undefined) { await sb.auth.signOut(); toast('Você saiu da conta.'); location.hash = 'inicio'; }
     else if (d.google !== undefined) entrarComGoogle();
     else if (d.fav) {
+      if (!S.user) return pedirLogin('Entre na sua conta para salvar seus favoritos.', location.hash);
+      if (t.dataset.ocupado) return;
       const id = Number(d.fav);
       const tem = S.favs.has(id);
+      t.dataset.ocupado = '1';
       const { error } = tem ? await sb.from('favoritos').delete().eq('produto_id', id) : await sb.from('favoritos').insert({ produto_id: id });
+      delete t.dataset.ocupado;
       if (error) return toast(traduzErro(error.message));
       tem ? S.favs.delete(id) : S.favs.add(id);
-      t.classList.toggle('on', !tem);
-      t.setAttribute('aria-pressed', !tem);
+      /* atualiza todos os corações desse produto (cartão e janela) */
+      $$('[data-fav="' + id + '"]').forEach(b => {
+        b.classList.toggle('on', !tem);
+        b.setAttribute('aria-pressed', !tem);
+        if (b.classList.contains('pc-fav')) b.setAttribute('aria-label', (tem ? 'Favoritar' : 'Remover dos favoritos') + ': ' + ((PNC.produto(id) || {}).nome || ''));
+      });
+      toast(tem ? 'Removido dos favoritos.' : 'Salvo nos favoritos.', tem ? null : { href: '#conta/favoritos', txt: 'Ver favoritos' });
     }
     else if (d.apagarEnd) { if (confirm('Remover este endereço?')) { await sb.from('enderecos').delete().eq('id', d.apagarEnd); render(); } }
     else if (d.copiar) { try { await navigator.clipboard.writeText(d.copiar); toast('Chave PIX copiada.'); } catch (er) { toast(d.copiar); } }
