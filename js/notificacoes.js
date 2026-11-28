@@ -133,22 +133,39 @@
 
   async function ligarPush(botao) {
     botao.disabled = true;
+    let etapa = 'permissão';
+    const opcoes = { userVisibleOnly: true, applicationServerKey: chaveBytes(VAPID) };
     try {
-      const reg = await navigator.serviceWorker.register('sw.js');
-      const perm = await Notification.requestPermission();
+      // o iPhone exige que a permissão seja pedida logo no toque, antes de qualquer outra espera
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
       if (perm !== 'granted') { PNC.toast('Sem permissão, o aparelho não recebe notificações.'); return desenharPush(); }
+      etapa = 'registro';
+      const reg = await navigator.serviceWorker.register('sw.js');
       await navigator.serviceWorker.ready;
+      etapa = 'inscrição';
       let sub = await reg.pushManager.getSubscription();
       // inscrição feita com outra chave (ex.: chave trocada): descarta e cria de novo
       if (sub && !mesmaChave(sub)) { await sub.unsubscribe().catch(() => { }); sub = null; }
-      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes(VAPID) });
+      if (!sub) {
+        try {
+          sub = await reg.pushManager.subscribe(opcoes);
+        } catch (e1) {
+          // o iPhone às vezes falha logo depois de apagar a inscrição antiga: limpa e tenta mais uma vez
+          const velha = await reg.pushManager.getSubscription().catch(() => null);
+          if (velha) await velha.unsubscribe().catch(() => { });
+          await new Promise(r => setTimeout(r, 1000));
+          sub = await reg.pushManager.subscribe(opcoes);
+        }
+      }
+      etapa = 'salvar';
       const j = sub.toJSON();
       const aparelho = (navigator.userAgentData && navigator.userAgentData.platform) || (ehIOS() ? 'iPhone' : /android/i.test(navigator.userAgent) ? 'Android' : 'Computador');
       const { error } = await sb.rpc('salvar_inscricao_push', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_aparelho: aparelho });
       if (error) throw error;
       PNC.toast('Pronto! Este aparelho vai receber as notificações.');
     } catch (e) {
-      PNC.toast('Não foi possível ativar as notificações neste aparelho.');
+      const det = (e && (e.name && e.name !== 'Error' ? e.name : '') || '') + (e && e.message ? ' ' + e.message : '');
+      PNC.toast('Não foi possível ativar as notificações (etapa: ' + etapa + (det.trim() ? ' · ' + det.trim().slice(0, 120) : '') + ').');
     }
     desenharPush();
   }
