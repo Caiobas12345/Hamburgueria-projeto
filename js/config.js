@@ -12,5 +12,5 @@ window.PNC_CONFIG = {
   supabaseKey: 'sb_publishable_MfMPh_KmWJHAjJhGv2aFBA_L22RdqQw',
   // notificações no celular: cole aqui a CHAVE PÚBLICA gerada em ferramentas/gerar-chaves-push.html
   // (a chave PRIVADA vai só nos Secrets do Supabase, nunca aqui). Vazio = sem notificações no celular.
-  vapidPublica: 'zxBOGWnBCVOeuyKYFoR0vuKwRaYWxHCcVhPL0VfHSu8'
+  vapidPublica: 'BBjVVqJsZvAzl2-71QEom9H3Mw8G3mBMmfQqMJGv2mKX2WL5jnw5M9N8dlhMr8eA5_-k4cfqdojlAN6qQumm-hE'
 };
