@@ -383,11 +383,12 @@
     return `<article class="card-ped st-${p.status}">
       <header><div><strong>#${esc(p.codigo)}</strong><small>${PNC.dataHora(p.criado_em)}</small></div><span class="${PNC.corStatus(p.status)}">${rotulo}</span></header>
       <div class="cp-cliente"><b>${esc(p.cliente_nome)}</b><a href="${PNC.linkWhats(p.cliente_telefone.length <= 11 ? '55' + PNC.soNumeros(p.cliente_telefone) : p.cliente_telefone, msgZap)}" target="_blank" rel="noopener">${I.whats} ${esc(p.cliente_telefone)}</a>${p.cliente_email ? `<small>${esc(p.cliente_email)}</small>` : ''}</div>
+      ${p.agendado_para ? `<p class="cp-agendado">Agendado para <b>${esc(PNC.fmtAgendado(p.agendado_para))}</b></p>` : ''}
       <div class="cp-tipo ${p.tipo}">${p.tipo === 'entrega' ? 'ENTREGA' : 'RETIRADA'}${p.endereco ? `<p>${esc(PNC.textoEndereco(p.endereco))}</p>` : ''}</div>
       <ul class="cp-itens">${itens.map(it => `<li><span><b>${it.quantidade}×</b> ${esc(it.nome)}${it.tamanho ? ' (' + esc(it.tamanho) + ')' : ''}${PNC.detalhesItem(it.adicionais, it.removidos, it.observacao)}</span><span>${brl(it.total)}</span></li>`).join('')}</ul>
       ${p.observacoes ? `<p class="cp-obs"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
       ${p.tipo === 'entrega' && p.entregador_id ? `<p class="cp-ent">Entregador: <b>${esc(nomesEnt[p.entregador_id] || '—')}</b>${p.tentativas_codigo >= 5 ? ' · <span class="cp-alerta">código errado 5 vezes: confirme a entrega com o cliente</span>' : ''}</p>` : ''}
-      <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}${Number(p.desconto) > 0 ? ` · <em class="cp-desc">Cupom ${esc(p.cupom_codigo || '')} − ${brl(p.desconto)}</em>` : ''}${Number(p.desconto_pontos) > 0 ? ` · <em class="cp-desc">${Number(p.pontos_usados)} pontos − ${brl(p.desconto_pontos)}</em>` : ''}</span><strong>${brl(p.total)}</strong></div>
+      <div class="cp-totais"><span>Subtotal ${brl(p.subtotal)}${p.tipo === 'entrega' ? ' · Entrega ' + brl(p.taxa_entrega) : ''}${Number(p.desconto) > 0 ? ` · <em class="cp-desc">Cupom ${esc(p.cupom_codigo || '')} − ${brl(p.desconto)}</em>` : ''}${Number(p.desconto_pontos) > 0 ? ` · <em class="cp-desc">${Number(p.pontos_usados)} pontos − ${brl(p.desconto_pontos)}</em>` : ''}${Number(p.desconto_indicacao) > 0 ? ` · <em class="cp-desc">Indicação − ${brl(p.desconto_indicacao)}</em>` : ''}${Number(p.gorjeta) > 0 ? ` · Gorjeta do entregador ${brl(p.gorjeta)}` : ''}</span><strong>${brl(p.total)}</strong></div>
       <p class="cp-pag">${PNC.PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) + ' (devolver ' + brl(p.troco_para - p.total) + ')' : ''}</p>
       ${p.status === 'cancelado' && p.cancelado_motivo ? `<p class="cp-obs">Cancelado: ${esc(p.cancelado_motivo)}</p>` : ''}
       ${fim ? '' : `<div class="cp-acoes">${acoesAdmin(p).map(a => `<button type="button" class="btn amarelo" data-status="${a[0]}" data-id="${p.id}" data-valor="${esc(brl(p.total))}">${a[1]}</button>`).join('')}<button type="button" class="btn-texto" data-status="cancelado" data-id="${p.id}">Cancelar</button></div>
@@ -708,11 +709,48 @@
     return '<span class="st feito">Ativo</span>';
   }
 
+  /* indique e ganhe: o amigo ganha % no 1º pedido; quem indicou ganha pontos quando ele é entregue */
+  const CAMPOS_IND = [
+    { k: 'ativo', r: 'Indique e ganhe ligado', t: 'bool', largo: true, dica: 'Cada cliente ganha um código para enviar aos amigos.' },
+    { k: 'desconto_percentual', r: 'Desconto do amigo (%)', t: 'dinheiro', nulo: true, dica: 'No primeiro pedido de quem foi indicado. Não junta com cupom.' },
+    { k: 'desconto_maximo', r: 'Desconto máximo (R$, opcional)', t: 'dinheiro', nulo: true, dica: 'Vazio = sem limite.' },
+    { k: 'pontos_indicador', r: 'Pontos para quem indicou', t: 'numero', nulo: true, dica: 'Entram no saldo de pontos quando o pedido do amigo é entregue.' }
+  ];
+  function blocoIndicacao(r) {
+    const c = r.config || {};
+    return `<div class="adm-cab menor"><div><h2>Indique e ganhe</h2><p class="sm">Quem foi indicado ganha desconto no primeiro pedido. Quem indicou ganha pontos de fidelidade quando esse pedido é entregue.</p></div></div>
+      ${Number(r.total) > 0 ? `<div class="fid-resumo">
+        <div><b>${Number(r.total)}</b><small>${Number(r.total) === 1 ? 'indicação' : 'indicações'}</small></div>
+        <div><b>${Number(r.concluidas)}</b><small>com pedido entregue</small></div>
+        <div><b>${brl(r.descontos_dados || 0)}</b><small>de desconto · ${Number(r.pontos_dados)} pontos dados</small></div></div>` : ''}
+      <form class="painel-bloco grid-end" id="formInd" novalidate>${CAMPOS_IND.map(f => campo(f, c[f.k])).join('')}
+        <p class="msg erro g2" id="indMsg" hidden></p>
+        <div class="g2"><button class="btn amarelo" type="submit">Salvar indique e ganhe</button></div></form>
+      ${(r.recentes || []).length ? `<div class="tabela"><table class="tab-rel"><thead><tr><th>Quando</th><th>Quem indicou</th><th>Amigo</th><th>Situação</th></tr></thead><tbody>${r.recentes.map(x => `<tr><td>${PNC.dataHora(x.criado_em)}</td><td>${esc(x.indicador || '—')}</td><td>${esc(x.indicado || '—')}</td><td>${x.status === 'concluida' ? '<span class="st feito">Pedido entregue</span>' : '<span class="st andamento">Aguardando 1º pedido</span>'}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  }
+  function ligarIndicacao(el) {
+    const f = $('#formInd');
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const d = lerForm(f, CAMPOS_IND);
+      const m = $('#indMsg');
+      const { error } = await sb.rpc('admin_salvar_indicacao', {
+        p_ativo: d.ativo, p_desconto_percentual: d.desconto_percentual, p_desconto_maximo: d.desconto_maximo,
+        p_pontos_indicador: d.pontos_indicador == null ? null : Math.round(d.pontos_indicador)
+      });
+      if (error) { m.textContent = PNC.traduzErro(error.message); m.hidden = false; return; }
+      m.hidden = true;
+      ok(d.ativo ? 'Indique e ganhe salvo e ligado.' : 'Indique e ganhe salvo (desligado).');
+      cupons(el);
+    });
+  }
+
   async function cupons(el) {
-    const [{ data: lista, error }, { data: fid, error: e2 }, { data: resumo }] = await Promise.all([
+    const [{ data: lista, error }, { data: fid, error: e2 }, { data: resumo }, { data: indR }] = await Promise.all([
       sb.rpc('admin_listar_cupons'),
       sb.from('fidelidade_config').select('*').eq('id', 1).maybeSingle(),
-      sb.rpc('admin_resumo_fidelidade')
+      sb.rpc('admin_resumo_fidelidade'),
+      sb.rpc('admin_resumo_indicacao') // migração 007 (sem ela, o bloco não aparece)
     ]);
     if (error || e2) return erro(el, error || e2);
     const f = fid || {};
@@ -741,7 +779,9 @@
       <form class="painel-bloco grid-end" id="formFid" novalidate>${camposFid.map(c => campo(c, f[c.k])).join('')}
         <p class="sm g2" id="fidExemplo"></p>
         <p class="msg erro g2" id="fidMsg" hidden></p>
-        <div class="g2"><button class="btn amarelo" type="submit">Salvar programa de pontos</button></div></form>`;
+        <div class="g2"><button class="btn amarelo" type="submit">Salvar programa de pontos</button></div></form>
+      ${indR ? blocoIndicacao(indR) : ''}`;
+    if (indR) ligarIndicacao(el);
 
     const formFid = $('#formFid');
     const exemplo = () => {
@@ -1050,7 +1090,7 @@
     if (!corpo) return;
     if (error) return erro(corpo, error);
     const s = r.resumo || {}, o = r.outros || {};
-    const descontos = num(s.desconto_cupons) + num(s.desconto_pontos);
+    const descontos = num(s.desconto_cupons) + num(s.desconto_pontos) + num(s.desconto_indicacao);
     const ag = agruparDias(r.por_dia || []);
     const totalProd = (r.produtos || []).reduce((t, p) => t + num(p.valor), 0);
     const totalPag = (r.pagamentos || []).reduce((t, p) => t + num(p.valor), 0);
@@ -1075,15 +1115,15 @@
             ${(r.pagamentos || []).length ? `<table class="tab-rel"><thead><tr><th>Forma</th><th class="num">Pedidos</th><th class="num">Valor</th><th class="num">%</th></tr></thead><tbody>${r.pagamentos.map(p => `<tr><td>${PAG_ROT[p.pagamento] || esc(p.pagamento)}</td><td class="num">${num(p.pedidos)}</td><td class="num">${brl(p.valor)}</td><td class="num">${pct(num(p.valor), totalPag)}</td></tr>`).join('')}</tbody></table>` : '<p class="sm">Nenhuma venda no período.</p>'}
           </div>
           <div class="painel-bloco"><h3>Descontos</h3>
-            <dl class="rel-lista"><div><dt>Cupons</dt><dd>${brl(s.desconto_cupons)}</dd></div><div><dt>Pontos de fidelidade</dt><dd>${brl(s.desconto_pontos)}</dd></div><div><dt>Total em descontos</dt><dd><b>${brl(descontos)}</b></dd></div></dl>
+            <dl class="rel-lista"><div><dt>Cupons</dt><dd>${brl(s.desconto_cupons)}</dd></div><div><dt>Pontos de fidelidade</dt><dd>${brl(s.desconto_pontos)}</dd></div>${num(s.desconto_indicacao) ? `<div><dt>Indique e ganhe</dt><dd>${brl(s.desconto_indicacao)}</dd></div>` : ''}<div><dt>Total em descontos</dt><dd><b>${brl(descontos)}</b></dd></div></dl>
             ${(r.cupons || []).length ? `<table class="tab-rel"><thead><tr><th>Cupom</th><th class="num">Usos</th><th class="num">Desconto</th></tr></thead><tbody>${r.cupons.map(c => `<tr><td>${esc(c.codigo)}</td><td class="num">${num(c.usos)}</td><td class="num">${brl(c.desconto)}</td></tr>`).join('')}</tbody></table>` : ''}
           </div>
           <div class="painel-bloco"><h3>Outros números</h3>
-            <dl class="rel-lista"><div><dt>Valor dos produtos</dt><dd>${brl(s.produtos)}</dd></div><div><dt>Taxas de entrega</dt><dd>${brl(s.taxas)}</dd></div><div><dt>Entregas / retiradas</dt><dd>${num(s.entregas)} / ${num(s.retiradas)}</dd></div><div><dt>Pedidos em andamento</dt><dd>${num(o.em_andamento)}</dd></div><div><dt>Cancelados</dt><dd>${num(o.cancelados)} (${brl(o.cancelados_valor)})</dd></div></dl>
+            <dl class="rel-lista"><div><dt>Valor dos produtos</dt><dd>${brl(s.produtos)}</dd></div><div><dt>Taxas de entrega</dt><dd>${brl(s.taxas)}</dd></div>${num(s.gorjetas) ? `<div><dt>Gorjetas (dos entregadores)</dt><dd>${brl(s.gorjetas)}</dd></div>` : ''}${num(s.agendados) ? `<div><dt>Pedidos agendados</dt><dd>${num(s.agendados)}</dd></div>` : ''}<div><dt>Entregas / retiradas</dt><dd>${num(s.entregas)} / ${num(s.retiradas)}</dd></div><div><dt>Pedidos em andamento</dt><dd>${num(o.em_andamento)}</dd></div><div><dt>Cancelados</dt><dd>${num(o.cancelados)} (${brl(o.cancelados_valor)})</dd></div></dl>
           </div>
         </div>
       </div>
-      <p class="sm">Faturamento = total pago pelos clientes nos pedidos entregues (produtos + entrega − descontos). Pedidos em andamento e cancelados não entram nos valores.</p>`;
+      <p class="sm">Faturamento = total pago pelos clientes nos pedidos entregues (produtos + entrega − descontos), sem as gorjetas, que são dos entregadores. Pedidos em andamento e cancelados não entram nos valores.</p>`;
 
     /* dica do gráfico */
     const gr = $('[data-grafico]', corpo);
@@ -1347,11 +1387,14 @@
         { k: 'sobre', r: 'Sobre a hamburgueria (texto da home)', t: 'area', largo: true, linhas: 4 }
       ]],
       ['Horários', [
-        { k: 'horarios', r: 'Dias e horários de funcionamento', t: 'horarios', dica: 'Fora destes horários o site não aceita pedidos. Sem nenhum dia marcado, aceita a qualquer hora.' }
+        { k: 'horarios', r: 'Dias e horários de funcionamento', t: 'horarios', dica: 'Fora destes horários o site não aceita pedidos. Sem nenhum dia marcado, aceita a qualquer hora.' },
+        // migração 007
+        ...('agendamento_ativo' in cfg ? [{ k: 'agendamento_ativo', r: 'Aceitar pedidos agendados', t: 'bool', largo: true, dica: 'O cliente escolhe dia e horário (de 30 em 30 min, até 7 dias, dentro dos horários acima). Com a loja fechada, ainda dá para agendar.' }] : [])
       ]],
       ['Pagamento', [
         { k: 'pagamentos', r: 'Formas de pagamento aceitas', t: 'pagamentos' },
-        { k: 'chave_pix', r: 'Chave PIX', largo: true, dica: 'Aparece para o cliente depois de confirmar o pedido com PIX.' }
+        { k: 'chave_pix', r: 'Chave PIX', largo: true, dica: 'Aparece para o cliente depois de confirmar o pedido com PIX.' },
+        ...('gorjeta_ativa' in cfg ? [{ k: 'gorjeta_ativa', r: 'Gorjeta para o entregador', t: 'bool', largo: true, dica: 'No pedido com entrega, o cliente pode digitar um valor de gorjeta (até R$ 200). O valor é do entregador e não entra no faturamento.' }] : [])
       ]],
       ['Banner principal', [
         { k: 'banner_titulo', r: 'Título do banner', ph: 'Pão na Chapa' },

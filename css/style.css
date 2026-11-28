@@ -6062,3 +6062,330 @@ body[data-rota="entregador"] .rodape {
     align-items: flex-start
   }
 }
+
+/* =====================================================================
+   ETAPA 8A: AGENDAMENTO, GORJETA, FOTO DE PERFIL, PEDIR DE NOVO, INDIQUE
+===================================================================== */
+/* foto de perfil */
+.conta-quem {
+  display: flex;
+  align-items: center;
+  gap: 18px
+}
+
+.avatar-conta {
+  position: relative;
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--preto);
+  color: var(--amarelo)
+}
+
+.avatar-conta img,
+.avatar-conta>span {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover
+}
+
+.avatar-conta>span {
+  display: grid;
+  place-items: center;
+  font: 800 2.2rem/1 var(--titulo)
+}
+
+.avatar-trocar {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--creme);
+  border-radius: 50%;
+  background: var(--amarelo);
+  color: var(--preto);
+  cursor: pointer
+}
+
+.avatar-trocar svg {
+  width: 17px;
+  height: 17px
+}
+
+.avatar-trocar:focus-within {
+  outline: 2px solid var(--tinta);
+  outline-offset: 2px
+}
+
+.avatar-topo {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--amarelo)
+}
+
+/* pedir de novo */
+.lp-item {
+  display: grid;
+  gap: 6px
+}
+
+.lp-repetir {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--tinta);
+  font: 700 .82rem var(--texto);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px
+}
+
+.lp-repetir svg,
+.pedido-acoes .btn svg {
+  width: 16px;
+  height: 16px
+}
+
+.lp-repetir:disabled {
+  opacity: .5
+}
+
+/* agendamento */
+.quando {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px
+}
+
+.quando-tit {
+  font-weight: 700
+}
+
+.quando .pilulas span svg {
+  width: 15px;
+  height: 15px;
+  margin-right: 4px;
+  vertical-align: -2px
+}
+
+.quando .pilulas input:disabled+span {
+  opacity: .5;
+  cursor: not-allowed
+}
+
+.agendar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px
+}
+
+.agendar[hidden] {
+  display: none
+}
+
+.r-quando {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--raio);
+  background: #FFF6D6;
+  font-size: .92rem
+}
+
+.r-quando[hidden] {
+  display: none
+}
+
+.r-quando svg,
+.agendado-box svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto
+}
+
+.agendado-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff
+}
+
+.agendado-box svg {
+  width: 24px;
+  height: 24px;
+  color: var(--amarelo)
+}
+
+.agendado-box small {
+  display: block;
+  color: var(--amarelo);
+  font: 700 .7rem var(--texto);
+  letter-spacing: .14em;
+  text-transform: uppercase
+}
+
+.agendado-box b {
+  font-size: 1.1rem
+}
+
+.cp-agendado,
+.coz-agendado {
+  padding: 8px 10px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff;
+  font-size: .9rem
+}
+
+.cp-agendado b,
+.coz-agendado b {
+  color: var(--amarelo)
+}
+
+/* gorjeta */
+.campo-gorjeta {
+  margin-top: 14px
+}
+
+.campo-gorjeta[hidden] {
+  display: none
+}
+
+.ent-gorjeta {
+  padding: 8px 12px;
+  border-radius: var(--raio);
+  background: #E6F4EA;
+  color: #14532D;
+  font-size: .92rem
+}
+
+.ent-gorjeta.total {
+  margin-bottom: 10px
+}
+
+.cupom-ind {
+  padding: 10px 12px;
+  border: 1px dashed var(--linha);
+  border-radius: var(--raio)
+}
+
+/* indique e ganhe */
+.indique {
+  display: grid;
+  gap: 16px;
+  max-width: 760px
+}
+
+.ind-codigo {
+  display: grid;
+  gap: 10px;
+  padding: 24px;
+  border-radius: var(--raio);
+  background: var(--preto);
+  color: #fff
+}
+
+.ind-codigo .sobre {
+  color: var(--amarelo)
+}
+
+.ind-num {
+  font: 800 clamp(2.4rem, 7vw, 3.6rem)/1 var(--titulo);
+  letter-spacing: .08em;
+  color: #fff
+}
+
+.ind-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px
+}
+
+.ind-codigo .btn.linha {
+  border-color: rgba(255, 255, 255, .5);
+  color: #fff
+}
+
+.ind-codigo .btn.linha:hover {
+  background: #fff;
+  color: var(--preto)
+}
+
+.ind-numeros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px
+}
+
+.ind-numeros div {
+  padding: 14px 16px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+.ind-numeros b {
+  display: block;
+  font: 800 1.6rem/1.1 var(--titulo)
+}
+
+.ind-numeros small {
+  color: var(--cinza)
+}
+
+.ind-usar {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--branco)
+}
+
+@media (max-width:760px) {
+  .conta-quem {
+    gap: 14px
+  }
+
+  .avatar-conta {
+    width: 68px;
+    height: 68px
+  }
+
+  .agendar {
+    grid-template-columns: 1fr 1fr
+  }
+
+  .ind-botoes .btn {
+    flex: 1 1 100%
+  }
+
+  .ind-numeros {
+    grid-template-columns: 1fr 1fr 1fr
+  }
+
+  .ind-numeros div {
+    padding: 12px
+  }
+
+  .ind-numeros b {
+    font-size: 1.3rem
+  }
+}

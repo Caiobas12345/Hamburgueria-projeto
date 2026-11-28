@@ -145,12 +145,13 @@
         ${tel ? `<a class="btn linha pequeno" href="tel:${esc(tel)}">Ligar para ${esc(p.cliente)}</a>` : ''}
       </div>
       <p class="ent-pagto">${cobranca(p)}</p>
+      ${Number(p.gorjeta) > 0 ? `<p class="ent-gorjeta">Gorjeta para você: <b>${brl(p.gorjeta)}</b>${p.pagamento === 'pix' ? ' (já paga no PIX)' : ' (já está no valor a cobrar)'}</p>` : ''}
       <ul class="ent-itens">${(p.itens || []).map(i => `<li><b>${Number(i.quantidade)}×</b> ${esc(i.nome)}${i.tamanho ? ' (' + esc(i.tamanho) + ')' : ''}</li>`).join('')}</ul>
       ${p.observacoes ? `<p class="coz-obs-ped"><b>Obs.:</b> ${esc(p.observacoes)}</p>` : ''}
       ${!saiu ? `<div class="ent-acoes"><button type="button" class="btn amarelo largo" data-ent-sair="${Number(p.id)}">Saí para entrega</button>
           <button type="button" class="btn-texto" data-ent-devolver="${Number(p.id)}">Devolver entrega</button></div>`
         : p.bloqueado ? '<p class="msg erro">Muitos códigos errados. Peça para a loja confirmar esta entrega.</p>'
-        : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
+          : `<form class="ent-codigo" data-ent-confirmar="${Number(p.id)}" data-codigo="${esc(p.codigo)}">
             <label for="cod${Number(p.id)}">Código de entrega <small>Peça ao cliente os 4 números que aparecem no pedido dele.</small></label>
             <div class="ent-codigo-linha">
               <input class="campo" id="cod${Number(p.id)}" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required>
@@ -167,6 +168,7 @@
     return `<article class="ent-card">
       <header><strong>#${esc(p.codigo)}</strong><span class="ent-bairro">${esc(p.bairro || 'Bairro não informado')}</span></header>
       <p class="ent-meta">${Number(p.itens)} ${Number(p.itens) === 1 ? 'item' : 'itens'} · ${PAGTO[p.pagamento] || esc(p.pagamento)}${min == null ? '' : ' · pronto ' + (min < 1 ? 'agora' : 'há ' + min + ' min')}</p>
+      ${Number(p.gorjeta) > 0 ? `<p class="ent-gorjeta">Com gorjeta de <b>${brl(p.gorjeta)}</b></p>` : ''}
       <button type="button" class="btn amarelo largo" data-ent-pegar="${Number(p.id)}">Pegar entrega</button>
     </article>`;
   }
@@ -197,7 +199,8 @@
     if (!digitando) secao('entMinhas', '', m.length ? m.map(cartaoMinha).join('') : '<p class="coz-vazio">Nenhuma entrega com você agora.</p>');
     secao('entDisp', '', d.length ? d.map(cartaoDisponivel).join('') : '<p class="coz-vazio">Nenhum pedido esperando entregador.</p>');
     $('#entQtd').textContent = d.length;
-    secao('entHoje', '', h.length ? `<ul class="ent-hoje">${h.map(x => `<li><b>#${esc(x.codigo)}</b><span>${esc(x.bairro)}</span><small>${x.status === 'entregue' ? 'Entregue' : 'Cancelado'} às ${hora(x.quando)}</small></li>`).join('')}</ul>` : '<p class="coz-vazio">Nenhuma entrega concluída hoje.</p>');
+    const gorjHoje = h.reduce((t, x) => t + (Number(x.gorjeta) || 0), 0);
+    secao('entHoje', '', h.length ? `${gorjHoje > 0 ? `<p class="ent-gorjeta total">Gorjetas de hoje: <b>${brl(gorjHoje)}</b></p>` : ''}<ul class="ent-hoje">${h.map(x => `<li><b>#${esc(x.codigo)}</b><span>${esc(x.bairro)}${Number(x.gorjeta) > 0 ? ' · gorjeta ' + brl(x.gorjeta) : ''}</span><small>${x.status === 'entregue' ? 'Entregue' : 'Cancelado'} às ${hora(x.quando)}</small></li>`).join('')}</ul>` : '<p class="coz-vazio">Nenhuma entrega concluída hoje.</p>');
   }
 
   /* ===================================================================

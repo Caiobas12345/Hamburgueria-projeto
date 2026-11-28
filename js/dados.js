@@ -132,16 +132,54 @@
   };
 
   /* null = horários não configurados (não dá para afirmar) */
-  PNC.abertoAgora = () => {
+  /* a loja está aberta neste dia da semana (0 = domingo) e minuto do dia? Sem horários = aberta */
+  PNC.abertoEm = (dia, m) => {
     const h = E.config.horarios || [];
-    if (!h.length) return null;
-    const n = PNC.agoraSP();
+    if (!h.length) return true;
     return h.some(x => {
       const a = min(x.abre), f = min(x.fecha);
       if (a == null || f == null) return false;
-      if (a <= f) return +x.dia === n.dia && n.min >= a && n.min <= f;
-      return (+x.dia === n.dia && n.min >= a) || (+x.dia === (n.dia + 6) % 7 && n.min <= f);
+      if (a <= f) return +x.dia === dia && m >= a && m <= f;
+      return (+x.dia === dia && m >= a) || (+x.dia === (dia + 6) % 7 && m <= f);
     });
+  };
+
+  PNC.abertoAgora = () => {
+    if (!(E.config.horarios || []).length) return null;
+    const n = PNC.agoraSP();
+    return PNC.abertoEm(n.dia, n.min);
+  };
+
+  /* horários para agendar: de 30 em 30 min, com 30 min de antecedência, até 7 dias,
+     só quando a loja está aberta durante toda a meia hora. (O banco confere tudo de novo.)
+     Brasília não tem horário de verão desde 2019: -03:00 fixo. */
+  PNC.horariosAgendamento = () => {
+    const SP = 3 * 3600e3, MEIA = 30 * 60e3, agora = Date.now(), lista = [];
+    const fim = agora + 7 * 24 * 3600e3;
+    for (let t = Math.ceil((agora + MEIA) / MEIA) * MEIA; t <= fim; t += MEIA) {
+      const d = new Date(t - SP), d2 = new Date(t - SP + 29 * 60e3);
+      if (!PNC.abertoEm(d.getUTCDay(), d.getUTCHours() * 60 + d.getUTCMinutes())) continue;
+      if (!PNC.abertoEm(d2.getUTCDay(), d2.getUTCHours() * 60 + d2.getUTCMinutes())) continue;
+      const iso = d.toISOString();
+      lista.push({ iso: iso.slice(0, 16) + ':00-03:00', data: iso.slice(0, 10), hora: iso.slice(11, 16), dia: d.getUTCDay() });
+    }
+    return lista;
+  };
+
+  const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  /* "Hoje", "Amanhã" ou "sáb, 29/11" para a data AAAA-MM-DD (horário de Brasília) */
+  PNC.rotuloDia = data => {
+    const hoje = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+    const amanha = new Date(Date.now() - 3 * 3600e3 + 24 * 3600e3).toISOString().slice(0, 10);
+    if (data === hoje) return 'Hoje';
+    if (data === amanha) return 'Amanhã';
+    const [y, m, d] = data.split('-').map(Number);
+    return SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + ', ' + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0');
+  };
+  /* data/hora de um pedido agendado, ex.: "Hoje às 19:30" ou "sáb, 29/11 às 19:30" */
+  PNC.fmtAgendado = iso => {
+    const d = new Date(new Date(iso).getTime() - 3 * 3600e3).toISOString();
+    return PNC.rotuloDia(d.slice(0, 10)) + ' às ' + d.slice(11, 16);
   };
 
   PNC.horarioHoje = () => {

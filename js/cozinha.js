@@ -41,11 +41,13 @@
 
   function cartao(p) {
     const min = minutosDesde(p.criado_em);
-    const atrasado = min >= ATRASO_MIN && p.status !== 'aguardando_entregador';
+    // agendado: só conta atraso a partir do horário marcado
+    const atrasado = (p.agendado_para ? minutosDesde(p.agendado_para) : min) >= ATRASO_MIN && p.status !== 'aguardando_entregador';
     const a = acao(p);
     const sit = situacao(p);
     return `<article class="coz-card ${esc(p.tipo)}${atrasado ? ' atrasado' : ''}">
       <header><strong>#${esc(p.codigo)}</strong><span class="coz-tipo">${p.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</span></header>
+      ${p.agendado_para ? `<p class="coz-agendado">Agendado para <b>${esc(PNC.fmtAgendado(p.agendado_para))}</b></p>` : ''}
       <p class="coz-meta">${esc(p.cliente || '')}${p.cliente ? ' · ' : ''}pedido às ${hora(p.criado_em)} · <span class="coz-tempo">${min < 1 ? 'agora' : 'há ' + min + ' min'}</span></p>
       <ul class="coz-itens">${(p.itens || []).map(i => `<li>
         <span class="coz-qtd">${Number(i.quantidade)}×</span>

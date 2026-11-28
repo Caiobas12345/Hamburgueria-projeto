@@ -20,6 +20,9 @@
     mais: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     menos: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
     lixo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    repetir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0114-5.3L20 9M20 4v5h-5M20 12a8 8 0 01-14 5.3L4 15M4 20v-5h5"/></svg>',
+    relogio: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
     carrinho: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 001.5 1.2h8.4a1.5 1.5 0 001.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="16.5" cy="19.5" r="1.4"/></svg>',
     coracao: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.4A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>',
     chama: '<svg viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1c1.6 6.2-2.8 8.9-4.9 13.2C9.6 17.4 10 21 12.4 23c-.3-2.9.9-5.2 3.2-6.9-.2 3.3 1.5 5.4 3.4 7.2 1.9 1.8 2.6 4.5 1.4 6.9 3-1.3 5.1-4.1 5.2-7.6.1-2.6-.9-4.9-2.3-6.9.9 2.4.6 4.3-.8 5.6C23.6 14.6 21.3 6 16 1zM5.5 19.5C3.9 22 3 24.6 3 27.3 3 34.3 8.8 39 16 39s13-4.7 13-11.7c0-1.3-.2-2.5-.6-3.7-.4 5.6-5.6 9.4-12.4 9.4S4.6 30 4.3 25.1c-.1-1.9.3-3.8 1.2-5.6z"/></svg>',
@@ -61,6 +64,8 @@
     let v = '';
     try { v = sessionStorage.getItem('pnc_volta') || ''; sessionStorage.removeItem('pnc_volta'); } catch (e) { }
     v = v.replace(/^#/, '');
+    // veio por um link de convite: leva para a aba onde o código é aplicado
+    try { if (localStorage.getItem('pnc_convite')) v = 'conta/indique'; } catch (e) { }
     if (!v || /^(entrar|criar-conta|recuperar-senha|nova-senha)/.test(v)) v = PNC.ehAdmin() ? 'admin' : PNC.papel() === 'cozinha' ? 'cozinha' : PNC.papel() === 'entregador' ? 'entregador' : 'conta';
     location.hash === '#' + v ? render() : (location.hash = v);
   }
@@ -442,6 +447,7 @@
         ${botaoGoogle}
         <p class="troca">Já tem conta? <a href="#entrar">Entrar</a></p>
       </form>`);
+    if (S.aviso) { mostrarMsg(S.aviso); S.aviso = ''; }
   };
 
   P['recuperar-senha'] = function () {
@@ -542,29 +548,38 @@
     const aba = params[0] || 'pedidos';
     const abas = [['pedidos', 'Meus pedidos'], ['dados', 'Dados pessoais'], ['enderecos', 'Endereços'], ['favoritos', 'Favoritos']];
     // a aba de pontos aparece quando o programa está ligado ou o cliente já tem histórico
-    const { data: pts } = await sb.rpc('meus_pontos');
+    const [{ data: pts }, { data: ind }] = await Promise.all([sb.rpc('meus_pontos'), sb.rpc('minha_indicacao')]);
     if (pts && (pts.ativo || (pts.extrato || []).length)) abas.splice(1, 0, ['pontos', 'Meus pontos']);
+    // indique e ganhe (migração 007): aparece com o programa ligado ou se a pessoa já participou
+    if (ind && (ind.ativo || ind.indicados > 0 || ind.recebida)) abas.splice(abas.length - 1, 0, ['indique', 'Indique e ganhe']);
     const nome = (S.perfil && S.perfil.nome) || (S.user && S.user.email) || '';
     const papel = (S.perfil && S.perfil.papel) || 'cliente';
     const suspensa = !PNC.contaAtiva();
-    app.innerHTML = `<section class="titulo-pag claro"><div class="caixa conta-topo"><div><p class="sobre">Minha conta</p><h1>Olá${nome ? ', ' + esc(nome.split(' ')[0]) : ''}</h1>${papel !== 'cliente' ? `<p class="conta-papel">Perfil: <span class="papel ${esc(papel)}">${esc(PNC.PAPEIS[papel] || papel)}</span></p>` : ''}</div>
+    const foto = (S.perfil && S.perfil.foto_url) || '';
+    app.innerHTML = `<section class="titulo-pag claro"><div class="caixa conta-topo"><div class="conta-quem">
+      <div class="avatar-conta">${foto ? `<img src="${esc(foto)}" alt="Sua foto de perfil">` : `<span aria-hidden="true">${esc((nome || '?').trim().charAt(0).toUpperCase())}</span>`}
+        <label class="avatar-trocar" title="${foto ? 'Trocar foto' : 'Adicionar foto'}"><input type="file" accept="image/jpeg,image/png,image/webp" id="fotoPerfil" class="vh"><span class="vh">${foto ? 'Trocar foto de perfil' : 'Adicionar foto de perfil'}</span>${ICON.camera}</label></div>
+      <div><p class="sobre">Minha conta</p><h1>Olá${nome ? ', ' + esc(nome.split(' ')[0]) : ''}</h1>${foto ? '<button class="btn-texto" type="button" id="tirarFoto">Remover foto</button>' : ''}${papel !== 'cliente' ? `<p class="conta-papel">Perfil: <span class="papel ${esc(papel)}">${esc(PNC.PAPEIS[papel] || papel)}</span></p>` : ''}</div></div>
       <div class="conta-acoes">${PNC.ehAdmin() ? '<a class="btn escuro" href="#admin">Painel administrativo</a>' : ''}${PNC.ehAdmin() || PNC.papel() === 'cozinha' ? '<a class="btn escuro" href="#cozinha">Painel da cozinha</a>' : ''}${PNC.papel() === 'entregador' ? '<a class="btn escuro" href="#entregador">Painel do entregador</a>' : ''}<button class="btn linha" type="button" data-sair>Sair da conta</button></div></div></section>
       ${suspensa ? `<div class="caixa"><p class="msg erro conta-aviso">Sua conta está suspensa${S.perfil.suspenso_motivo ? ' (' + esc(S.perfil.suspenso_motivo) + ')' : ''}. Você continua vendo seus pedidos, mas não pode fazer novos. Fale com a hamburgueria.</p></div>` : ''}
       <nav class="abas"><div class="caixa abas-in">${abas.map(a => `<a href="#conta/${a[0]}" class="${a[0] === aba ? 'on' : ''}">${a[1]}</a>`).join('')}</div></nav>
       <section class="secao curta"><div class="caixa" id="contaCorpo"><p class="carregando">Carregando...</p></div></section>`;
     const corpo = $('#contaCorpo');
+    $('#fotoPerfil').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) trocarFoto(f); });
+    if ($('#tirarFoto')) $('#tirarFoto').addEventListener('click', () => trocarFoto(null));
 
     if (aba === 'pedidos') {
       const [{ data, error }, { data: avs }] = await Promise.all([
-        sb.from('pedidos').select('id, codigo, criado_em, status, total, tipo').order('criado_em', { ascending: false }).limit(50),
+        sb.from('pedidos').select('*').order('criado_em', { ascending: false }).limit(50),
         sb.from('avaliacoes').select('pedido_id')
       ]);
       if (error) { corpo.innerHTML = vazio('Não foi possível carregar', traduzErro(error.message)); return; }
       const avaliados = new Set((avs || []).map(a => Number(a.pedido_id)));
       const podeAvaliarLista = !!avs;
-      corpo.innerHTML = data.length ? `<div class="lista-pedidos">${data.map(p => `<a class="linha-pedido" href="#pedido/${p.id}">
-          <span><strong>Pedido #${esc(p.codigo)}</strong><small>${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</small></span>
-          <span class="${corStatus(p.status)}">${PNC.rotuloStatus(p.status, p.tipo)}</span>${podeAvaliarLista && p.status === 'entregue' && !avaliados.has(Number(p.id)) ? '<span class="lp-avaliar">★ Avaliar</span>' : ''}<b>${brl(p.total)}</b>${ICON.seta}</a>`).join('')}</div>`
+      corpo.innerHTML = data.length ? `<div class="lista-pedidos">${data.map(p => `<div class="lp-item"><a class="linha-pedido" href="#pedido/${p.id}">
+          <span><strong>Pedido #${esc(p.codigo)}</strong><small>${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada'}${p.agendado_para ? ' · agendado para ' + esc(PNC.fmtAgendado(p.agendado_para)) : ''}</small></span>
+          <span class="${corStatus(p.status)}">${PNC.rotuloStatus(p.status, p.tipo)}</span>${podeAvaliarLista && p.status === 'entregue' && !avaliados.has(Number(p.id)) ? '<span class="lp-avaliar">★ Avaliar</span>' : ''}<b>${brl(p.total)}</b>${ICON.seta}</a>
+          ${PNC.FINAIS.includes(p.status) ? `<button class="lp-repetir" type="button" data-repetir="${p.id}">${ICON.repetir} Pedir de novo</button>` : ''}</div>`).join('')}</div>`
         : vazio('Você ainda não fez pedidos', 'Quando fizer, você acompanha tudo por aqui.', '<a class="btn amarelo" href="#cardapio">Ver cardápio</a>');
     }
 
@@ -590,7 +605,7 @@
       const temRegra = pts.pontos_para_resgate && pts.valor_resgate;
       const pct = temRegra ? Math.min(100, Math.round((pts.saldo % pts.pontos_para_resgate) / pts.pontos_para_resgate * 100)) : 0;
       const blocos = temRegra ? Math.floor(pts.saldo / pts.pontos_para_resgate) : 0;
-      const ROT = { ganho: 'Ganhou', resgate: 'Usou', estorno: 'Devolvido' };
+      const ROT = { ganho: 'Ganhou', resgate: 'Usou', estorno: 'Devolvido', indicacao: 'Indicação' };
       corpo.innerHTML = `<div class="pontos-conta">
         <div class="pontos-saldo">
           <p class="sobre">Seu saldo</p>
@@ -609,11 +624,152 @@
       </div>`;
     }
 
+    if (aba === 'indique') desenharIndique(corpo, ind);
+
     if (aba === 'favoritos') {
       const lista = Array.from(S.favs).map(PNC.produto).filter(Boolean);
       corpo.innerHTML = lista.length ? grade(lista) : vazio('Nenhum favorito', 'Toque no coração dentro de um produto para salvar aqui.', '<a class="btn amarelo" href="#cardapio">Ver cardápio</a>');
     }
   };
+
+  /* ---------- INDIQUE E GANHE ---------- */
+  function desenharIndique(corpo, ind) {
+    if (!ind) { corpo.innerHTML = vazio('Indique e ganhe indisponível', 'Tente novamente mais tarde.'); return; }
+    // o convite guardado só serve enquanto a pessoa ainda pode usar um código
+    if (!(ind.ativo && ind.pode_usar_codigo)) { try { localStorage.removeItem('pnc_convite'); } catch (e) { } }
+    const pct = ind.desconto_percentual != null ? String(Number(ind.desconto_percentual)).replace('.', ',') + '%' : '';
+    const link = ind.codigo ? location.origin + location.pathname + '#convite/' + ind.codigo : '';
+    const texto = 'Peça no ' + (E.config.nome_loja || 'Pão na Chapa') + ' com o meu código ' + ind.codigo + ' e ganhe ' + pct + ' de desconto no seu primeiro pedido: ' + link;
+    corpo.innerHTML = `<div class="indique">
+      ${ind.ativo && ind.codigo ? `<div class="ind-codigo">
+        <p class="sobre">Seu código</p>
+        <p class="ind-num">${esc(ind.codigo)}</p>
+        <div class="ind-botoes">
+          <a class="btn verde" href="https://wa.me/?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">${ICON.whats} Enviar pelo WhatsApp</a>
+          <button class="btn linha" type="button" data-copiar-link="${esc(link)}">Copiar link</button>
+          ${navigator.share ? '<button class="btn linha" type="button" id="indShare">Compartilhar</button>' : ''}
+        </div>
+      </div>
+      <div class="pontos-regras"><h3>Como funciona</h3><ul>
+        <li>Seu amigo cria a conta pelo seu link (ou digita o seu código) e ganha <b>${pct} de desconto</b>${ind.desconto_maximo ? ' (até ' + brl(ind.desconto_maximo) + ')' : ''} no primeiro pedido.</li>
+        <li>Quando o pedido dele for entregue, você ganha <b>${Number(ind.pontos_indicador)} pontos</b>.</li>
+        <li>O desconto de indicação não junta com cupom.</li></ul></div>`
+        : '<p class="msg">O indique e ganhe está pausado pela loja no momento.</p>'}
+      <div class="ind-numeros"><div><b>${Number(ind.indicados)}</b><small>${Number(ind.indicados) === 1 ? 'amigo indicado' : 'amigos indicados'}</small></div>
+        <div><b>${Number(ind.concluidas)}</b><small>${Number(ind.concluidas) === 1 ? 'já pediu' : 'já pediram'}</small></div>
+        <div><b>${Number(ind.pontos_ganhos)}</b><small>pontos ganhos</small></div></div>
+      ${ind.desconto_no_proximo ? `<p class="msg ok">Você foi indicado com o código ${esc(ind.recebida.codigo)}: seu desconto de ${pct} já vale no seu primeiro pedido.</p>` : ''}
+      ${ind.ativo && ind.pode_usar_codigo ? `<form class="ind-usar" id="formIndicacao" novalidate>
+        <label class="cp"><span>Recebeu um código de um amigo?</span>
+        <div class="cupom-linha"><input class="campo" id="indCodigo" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="Ex.: PNCAB12C"><button class="btn escuro" type="submit">Usar código</button></div></label>
+        <p class="sm">Vale só antes do seu primeiro pedido.</p><p class="msg erro" id="msgIndicacao" hidden></p></form>` : ''}
+    </div>`;
+    if ($('#indShare')) $('#indShare').addEventListener('click', () => navigator.share({ title: E.config.nome_loja || 'Pão na Chapa', text: texto }).catch(() => { }));
+    const f = $('#formIndicacao');
+    if (!f) return;
+    const usar = async cod => {
+      const m = $('#msgIndicacao');
+      const { error } = await sb.rpc('usar_indicacao', { p_codigo: cod });
+      try { localStorage.removeItem('pnc_convite'); } catch (e) { }
+      if (error) { m.textContent = traduzErro(error.message); m.hidden = false; return; }
+      toast('Código aplicado! Seu desconto vale no primeiro pedido.');
+      render();
+    };
+    f.addEventListener('submit', e => {
+      e.preventDefault();
+      const v = $('#indCodigo').value.trim();
+      if (!v) { const m = $('#msgIndicacao'); m.textContent = 'Digite o código.'; m.hidden = false; return; }
+      usar(v);
+    });
+    // veio por um link de convite: aplica o código guardado
+    let convite = '';
+    try { convite = localStorage.getItem('pnc_convite') || ''; } catch (e) { }
+    if (convite) { $('#indCodigo').value = convite; usar(convite); }
+  }
+
+  /* link de convite: #convite/CODIGO */
+  P.convite = function (params) {
+    const cod = String(params[0] || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+    try { if (cod) localStorage.setItem('pnc_convite', cod); } catch (e) { }
+    if (S.user) { location.hash = 'conta/indique'; return; }
+    try { sessionStorage.setItem('pnc_volta', '#conta/indique'); } catch (e) { }
+    S.aviso = 'Você foi convidado! Crie sua conta para ganhar o desconto no primeiro pedido.';
+    location.hash = 'criar-conta';
+  };
+
+  /* ---------- FOTO DE PERFIL ---------- */
+  function reduzirFoto(arquivo, lado) {
+    return new Promise((ok, falha) => {
+      const img = new Image();
+      const url = URL.createObjectURL(arquivo);
+      img.onload = () => {
+        // recorta no centro (quadrada) e reduz
+        const q = Math.min(img.width, img.height), k = Math.min(1, lado / q);
+        const c = document.createElement('canvas');
+        c.width = c.height = Math.round(q * k);
+        c.getContext('2d').drawImage(img, (img.width - q) / 2, (img.height - q) / 2, q, q, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => b ? ok(b) : falha(new Error('Não foi possível ler a foto.')), 'image/jpeg', 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); falha(new Error('Não foi possível ler a foto.')); };
+      img.src = url;
+    });
+  }
+  async function trocarFoto(arquivo) {
+    const antiga = (S.perfil && S.perfil.foto_url) || '';
+    let url = '';
+    try {
+      if (arquivo) {
+        if (!/^image\/(jpeg|png|webp)$/.test(arquivo.type)) return toast('Escolha uma foto em JPG, PNG ou WEBP.');
+        if (arquivo.size > 15 * 1024 * 1024) return toast('Essa foto é muito grande. Escolha uma de até 15 MB.');
+        toast('Enviando foto...');
+        const blob = await reduzirFoto(arquivo, 400);
+        const caminho = 'clientes/' + S.user.id + '/' + Date.now().toString(36) + '.jpg';
+        const { error: eu } = await sb.storage.from('midia').upload(caminho, blob, { contentType: 'image/jpeg', upsert: false });
+        if (eu) throw eu;
+        url = sb.storage.from('midia').getPublicUrl(caminho).data.publicUrl;
+      } else if (!confirm('Remover sua foto de perfil?')) return;
+      const { error } = await sb.rpc('salvar_minha_foto', { p_url: url });
+      if (error) throw error;
+      // apaga a foto anterior (só funciona na própria pasta)
+      const m = /\/midia\/(clientes\/[^?]+)$/.exec(antiga);
+      if (m) sb.storage.from('midia').remove([m[1]]).catch(() => { });
+      S.perfil.foto_url = url;
+      atualizarTopo();
+      toast(url ? 'Foto atualizada.' : 'Foto removida.');
+      render();
+    } catch (er) {
+      toast(traduzErro((er && er.message) || 'Não foi possível salvar a foto.'));
+    }
+  }
+
+  /* ---------- PEDIR DE NOVO ---------- */
+  async function repetirPedido(id) {
+    const { data: itens, error } = await sb.from('pedido_itens').select('*').eq('pedido_id', id).order('id');
+    if (error) return toast(traduzErro(error.message));
+    let ok = 0;
+    const fora = [], mudou = [];
+    (itens || []).forEach(i => {
+      const p = i.produto_id && PNC.produto(i.produto_id);
+      const tams = p ? PNC.tamanhos(p) : [];
+      if (!p || !p.disponivel || (tams.length && !tams.some(t => t.nome === i.tamanho))) { fora.push(i.nome); return; }
+      // adicionais foram gravados pelo nome: procura os que ainda existem para este produto
+      const permitidos = PNC.adicionaisDo(p);
+      const ids = [];
+      (i.adicionais || []).forEach(a => { const x = permitidos.find(y => y.nome === a.nome); if (x) ids.push(x.id); });
+      if (ids.length < (i.adicionais || []).length) mudou.push(i.nome);
+      const item = { produto_id: p.id, tamanho: tams.length ? i.tamanho : '', adicionais: ids, removidos: (i.removidos || []).filter(r => (p.removiveis || []).includes(r)), obs: i.observacao || '', qtd: i.quantidade };
+      if (PNC.carrinho.precoUnit(item) == null) { fora.push(i.nome); return; }
+      PNC.carrinho.adicionar(item);
+      ok++;
+    });
+    if (!ok) return toast('Os itens deste pedido não estão disponíveis agora.');
+    location.hash = 'carrinho';
+    const avisos = [];
+    if (fora.length) avisos.push('Fora do cardápio agora: ' + fora.join(', ') + '.');
+    if (mudou.length) avisos.push('Algum adicional não está disponível: ' + mudou.join(', ') + '.');
+    setTimeout(() => toast('Itens adicionados ao carrinho. Os preços são os de hoje. ' + avisos.join(' ')), 150);
+  }
 
   function textoEndereco(e) {
     return [e.rua + ', ' + e.numero, e.complemento, e.bairro, e.cidade, e.referencia ? 'Ref.: ' + e.referencia : ''].filter(Boolean).join(' · ');
@@ -701,6 +857,7 @@
           <h1>Pedido #${esc(p.codigo)}</h1><p class="sub">${dataHora(p.criado_em)} · ${p.tipo === 'entrega' ? 'Entrega' : 'Retirada no balcão'}</p></div></section>
         <section class="secao curta"><div class="caixa pedido-grid">
           <div>
+            ${p.agendado_para && p.status !== 'cancelado' ? `<div class="agendado-box">${ICON.relogio}<span><small>Pedido agendado</small><b>${esc(PNC.fmtAgendado(p.agendado_para))}</b></span></div>` : ''}
             ${p.status === 'cancelado' ? `<div class="cancelado-box">Este pedido foi cancelado.${p.cancelado_motivo ? `<small>${esc(p.cancelado_motivo)}</small>` : ''}</div>` : `<ol class="linha-tempo">${passos.map((s, i) => {
         const e = (ev || []).filter(x => x.status === s && !x.mensagem).pop();
         const final = p.status === 'entregue';
@@ -719,6 +876,7 @@
             ${pixPendente && c.chave_pix ? `<div class="pix-box"><small>Pagamento via PIX</small><p>Valor: <b>${brl(p.total)}</b></p><p>Chave PIX: <b>${esc(c.chave_pix)}</b></p><button class="btn linha" type="button" data-copiar="${esc(c.chave_pix)}">Copiar chave</button><p class="sm">Depois de pagar, envie o comprovante pelo WhatsApp. O pedido vai para a cozinha quando a loja confirmar o pagamento.</p></div>` : ''}
             ${p.pagamento === 'pix' && PNC.passos(p.tipo, p.pagamento).indexOf(p.status) >= 2 ? '<p class="msg ok">Pagamento PIX confirmado pela loja.</p>' : ''}
             <div class="pedido-acoes">${c.whatsapp ? `<a class="btn verde" href="${linkWhats(c.whatsapp, mensagemPedido(p, itens || []))}" target="_blank" rel="noopener">${ICON.whats} Enviar resumo pelo WhatsApp</a>` : ''}
+            ${terminado && S.user && p.usuario_id === S.user.id ? `<button class="btn linha" type="button" data-repetir="${p.id}">${ICON.repetir} Pedir de novo</button>` : ''}
             ${podeCancelar ? `<button class="btn-texto" type="button" data-cancelar-pedido="${p.id}">Cancelar pedido</button>` : ''}</div>
           </div>
           <aside class="resumo">
@@ -728,6 +886,8 @@
             ${p.tipo === 'entrega' ? `<div class="r-linha"><span>Taxa de entrega</span><b>${brl(p.taxa_entrega)}</b></div>` : ''}
             ${Number(p.desconto) > 0 ? `<div class="r-linha desconto"><span>Cupom ${esc(p.cupom_codigo || '')}</span><b>− ${brl(p.desconto)}</b></div>` : ''}
             ${Number(p.desconto_pontos) > 0 ? `<div class="r-linha desconto"><span>${Number(p.pontos_usados)} pontos</span><b>− ${brl(p.desconto_pontos)}</b></div>` : ''}
+            ${Number(p.desconto_indicacao) > 0 ? `<div class="r-linha desconto"><span>Desconto de indicação</span><b>− ${brl(p.desconto_indicacao)}</b></div>` : ''}
+            ${Number(p.gorjeta) > 0 ? `<div class="r-linha"><span>Gorjeta do entregador</span><b>${brl(p.gorjeta)}</b></div>` : ''}
             <div class="r-linha total"><span>Total</span><b>${brl(p.total)}</b></div>
             <dl class="r-dados"><dt>Pagamento</dt><dd>${PAGAMENTO[p.pagamento]}${p.troco_para ? ' · troco para ' + brl(p.troco_para) : ''}</dd>
             ${p.endereco ? `<dt>Endereço</dt><dd>${esc(textoEndereco(p.endereco))}</dd>` : ''}
@@ -823,6 +983,7 @@
 
   function mensagemPedido(p, itens) {
     const l = [`*Pedido #${p.codigo}* · ${E.config.nome_loja || 'Pão na Chapa'}`, ''];
+    if (p.agendado_para) l.splice(1, 0, `*Agendado para ${PNC.fmtAgendado(p.agendado_para)}*`);
     itens.forEach(i => {
       l.push(`${i.quantidade}x ${i.nome}${i.tamanho ? ' (' + i.tamanho + ')' : ''} — ${brl(i.total)}`);
       (i.adicionais || []).forEach(a => l.push('   + ' + a.nome));
@@ -833,6 +994,8 @@
     if (p.tipo === 'entrega') l.push(`Entrega: ${brl(p.taxa_entrega)}`);
     if (Number(p.desconto) > 0) l.push(`Cupom ${p.cupom_codigo || ''}: − ${brl(p.desconto)}`);
     if (Number(p.desconto_pontos) > 0) l.push(`${p.pontos_usados} pontos: − ${brl(p.desconto_pontos)}`);
+    if (Number(p.desconto_indicacao) > 0) l.push(`Desconto de indicação: − ${brl(p.desconto_indicacao)}`);
+    if (Number(p.gorjeta) > 0) l.push(`Gorjeta do entregador: ${brl(p.gorjeta)}`);
     l.push(`*Total: ${brl(p.total)}*`, '', `Pagamento: ${PAGAMENTO[p.pagamento]}${p.troco_para ? ' (troco para ' + brl(p.troco_para) + ')' : ''}`);
     l.push(p.tipo === 'entrega' && p.endereco ? 'Entrega em: ' + textoEndereco(p.endereco) : 'Retirada no balcão');
     l.push(`Cliente: ${p.cliente_nome} · ${p.cliente_telefone}`);
@@ -890,19 +1053,38 @@
     const pags = Object.keys(PAGAMENTO).filter(k => (c.pagamentos || {})[k]);
     const aberto = PNC.abertoAgora();
     const suspensa = !PNC.contaAtiva();
-    const fechado = suspensa || !c.aceitando_pedidos || aberto === false || !tipos.length || !pags.length;
+    // agendamento: com a loja fechada agora ainda dá para agendar para um horário de funcionamento
+    const slots = c.agendamento_ativo && c.aceitando_pedidos ? PNC.horariosAgendamento() : [];
+    const fechadoAgora = aberto === false;
+    const soAgendar = fechadoAgora && slots.length > 0;
+    const fechado = suspensa || !c.aceitando_pedidos || (fechadoAgora && !soAgendar) || !tipos.length || !pags.length;
+    const dias = [...new Set(slots.map(x => x.data))];
     const perfil = S.perfil || {};
-    // pontos de fidelidade (se a migração 004 ainda não foi rodada, a tela segue sem pontos)
-    const { data: pts } = await sb.rpc('meus_pontos');
+    // pontos (migração 004) e desconto de indicação (migração 007): sem elas, a tela segue sem esses blocos
+    const [{ data: pts }, { data: indR }] = await Promise.all([sb.rpc('meus_pontos'), sb.rpc('minha_indicacao')]);
     const fid = pts && pts.ativo ? pts : null;
+    const ind = indR && indR.desconto_no_proximo ? indR : null;
+    const pctInd = ind ? String(Number(ind.desconto_percentual)).replace('.', ',') + '%' : '';
     let cupom = null; // cupom aplicado: { codigo, tipo, desconto }
 
     app.innerHTML = `<section class="titulo-pag claro"><div class="caixa"><a class="voltar escuro" href="#carrinho">${ICON.voltar} Carrinho</a><h1>Finalizar pedido</h1></div></section>
       <section class="secao curta"><div class="caixa carrinho-grid">
         <form class="checkout" id="formCheckout" novalidate>
           ${fechado ? `<p class="msg erro">${suspensa ? 'Sua conta está suspensa e não pode fazer pedidos. Fale com a hamburgueria.' : !c.aceitando_pedidos || aberto === false ? 'A loja não está recebendo pedidos agora.' + (PNC.horarioHoje() ? ' Hoje: ' + esc(PNC.horarioHoje()) + '.' : '') : 'A loja ainda não configurou entrega/retirada ou pagamento.'}</p>` : ''}
+          ${!fechado && soAgendar ? '<p class="msg">A loja está fechada agora, mas você pode agendar o seu pedido para um horário de funcionamento.</p>' : ''}
           <fieldset><legend>1. Como você quer receber?</legend>
             <div class="opcoes">${tipos.map((t, i) => `<label class="opcao"><input type="radio" name="tipo" value="${t}" ${i ? '' : 'checked'}><span><strong>${t === 'entrega' ? 'Entrega' : 'Retirada no balcão'}</strong><small>${esc(t === 'entrega' ? c.tempo_entrega : c.tempo_retirada) || (t === 'entrega' ? 'Levamos até você' : (c.endereco ? esc(c.endereco) : 'Você retira na loja'))}</small></span></label>`).join('')}</div>
+            ${slots.length ? `<div class="quando">
+              <p class="quando-tit">Para quando?</p>
+              <div class="pilulas">
+                <label><input type="radio" name="quando" value="agora" ${soAgendar ? 'disabled' : 'checked'}><span>${soAgendar ? 'Agora (fechado)' : 'O quanto antes'}</span></label>
+                <label><input type="radio" name="quando" value="agendar" ${soAgendar ? 'checked' : ''}><span>${ICON.relogio} Agendar</span></label>
+              </div>
+              <div class="agendar" id="blocoAgendar" hidden>
+                <label class="cp"><span>Dia</span><select class="campo" id="kDia">${dias.map(d => `<option value="${d}">${esc(PNC.rotuloDia(d))}</option>`).join('')}</select></label>
+                <label class="cp"><span>Horário</span><select class="campo" id="kHora"></select></label>
+              </div>
+            </div>` : ''}
           </fieldset>
           <fieldset><legend>2. Seus dados</legend><div class="grid-end">
             <label class="cp"><span>Nome</span><input class="campo" id="kNome" autocomplete="name" value="${esc(perfil.nome || '')}"></label>
@@ -917,6 +1099,7 @@
           <fieldset><legend id="legPag">4. Pagamento</legend>
             <div class="opcoes">${pags.map((k, i) => `<label class="opcao"><input type="radio" name="pag" value="${k}" ${i ? '' : 'checked'}><span><strong>${PAGAMENTO[k]}</strong>${k === 'pix' ? '<small>A chave PIX aparece depois de confirmar</small>' : ''}</span></label>`).join('')}</div>
             <label class="cp" id="campoTroco" hidden><span>Troco para quanto? (opcional)</span><input class="campo" id="kTroco" inputmode="decimal" placeholder="Ex.: 100"></label>
+            ${c.gorjeta_ativa ? `<label class="cp campo-gorjeta" id="campoGorjeta" hidden><span>Gorjeta para o entregador <small>(opcional)</small></span><input class="campo" id="kGorjeta" inputmode="decimal" maxlength="7" placeholder="R$ 0,00"><small class="sm">O valor vai inteiro para quem entregar o seu pedido.</small></label>` : ''}
           </fieldset>
           <fieldset><legend id="legObs">5. Observações</legend>
             <textarea class="campo" id="kObs" rows="3" maxlength="500" placeholder="Ex.: interfone não funciona, chamar no portão"></textarea>
@@ -929,8 +1112,12 @@
           <div class="r-linha" id="linhaTaxa"><span>Taxa de entrega</span><b id="kTaxa">—</b></div>
           <div class="r-linha desconto" id="linhaCupom" hidden><span id="kCupomRot">Cupom</span><b id="kCupomVal"></b></div>
           <div class="r-linha desconto" id="linhaPontos" hidden><span id="kPontosRot">Pontos</span><b id="kPontosVal"></b></div>
+          ${ind ? `<div class="r-linha desconto" id="linhaInd"><span>Desconto de indicação (${pctInd})</span><b id="kIndVal"></b></div>` : ''}
+          <div class="r-linha" id="linhaGorjeta" hidden><span>Gorjeta do entregador</span><b id="kGorjetaVal"></b></div>
           <div class="r-linha total"><span>Total</span><b id="kTotal">${brl(PNC.carrinho.subtotal())}</b></div>
-          <div class="cupom-box">
+          <p class="r-quando" id="kQuando" hidden></p>
+          ${ind ? '<p class="sm cupom-ind">Seu desconto de indicação já está aplicado. Ele não junta com cupom.</p>' : ''}
+          <div class="cupom-box" ${ind ? 'hidden' : ''}>
             <label for="kCupom">Cupom de desconto</label>
             <div class="cupom-linha" id="cupomForm"><input class="campo" id="kCupom" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="30" placeholder="Digite o código"><button class="btn linha" type="button" id="btnCupom">Aplicar</button></div>
             <div class="cupom-ok" id="cupomOk" hidden><span><b id="cupomCod"></b><small id="cupomDesc"></small></span><button class="btn-texto" type="button" id="btnTiraCupom">Remover</button></div>
@@ -968,6 +1155,25 @@
       }
       $('#linhaTaxa').hidden = tipo !== 'entrega';
       const sub = PNC.carrinho.subtotal();
+      // agendamento
+      const quando = (form.querySelector('[name=quando]:checked') || {}).value || 'agora';
+      if ($('#blocoAgendar')) $('#blocoAgendar').hidden = quando !== 'agendar';
+      const hora = quando === 'agendar' && $('#kHora') ? $('#kHora').value : '';
+      const q = $('#kQuando');
+      q.hidden = !hora;
+      if (hora) q.innerHTML = ICON.relogio + ' Agendado para <b>' + esc(PNC.fmtAgendado(hora)) + '</b>';
+      // gorjeta (só na entrega)
+      if ($('#campoGorjeta')) $('#campoGorjeta').hidden = tipo !== 'entrega';
+      const gorj = tipo === 'entrega' ? lerGorjeta() : 0;
+      $('#linhaGorjeta').hidden = !(gorj > 0);
+      if (gorj > 0) $('#kGorjetaVal').textContent = brl(gorj);
+      // indicação: prévia (o banco recalcula)
+      let dInd = 0;
+      if (ind) {
+        dInd = Math.round(sub * Number(ind.desconto_percentual)) / 100;
+        if (ind.desconto_maximo != null) dInd = Math.min(dInd, Number(ind.desconto_maximo));
+        $('#kIndVal').textContent = '− ' + brl(dInd);
+      }
       ultimaTaxa = taxa || 0;
       // prévia do desconto (o valor final é recalculado pelo banco ao criar o pedido)
       let dCupom = 0;
@@ -977,13 +1183,34 @@
         $('#kCupomRot').textContent = 'Cupom ' + cupom.codigo;
         $('#kCupomVal').textContent = cupom.tipo === 'frete_gratis' && tipo !== 'entrega' ? 'só na entrega' : '− ' + brl(dCupom);
       }
-      const dPontos = desenharPontos(sub - (cupom && cupom.tipo !== 'frete_gratis' ? dCupom : 0));
+      const dPontos = desenharPontos(sub - dInd - (cupom && cupom.tipo !== 'frete_gratis' ? dCupom : 0));
       $('#linhaPontos').hidden = !dPontos;
       if (dPontos) $('#kPontosVal').textContent = '− ' + brl(dPontos);
-      $('#kTotal').textContent = brl(Math.max(0, sub + (taxa || 0) - dCupom - dPontos));
+      $('#kTotal').textContent = brl(Math.max(0, sub + (taxa || 0) - dCupom - dPontos - dInd) + (gorj > 0 ? gorj : 0));
       if (cupom && tipoCupom !== tipo) { tipoCupom = tipo; revalidarCupom(); }
-      $('#btnConfirmar').disabled = fechado || !ok;
+      $('#btnConfirmar').disabled = fechado || !ok || (quando === 'agora' && fechadoAgora) || (quando === 'agendar' && !hora);
     };
+
+    /* gorjeta digitada: aceita "5", "7,50" ou "7.50". NaN = valor inválido */
+    function lerGorjeta() {
+      const el = $('#kGorjeta');
+      if (!el) return 0;
+      let v = el.value.replace(/[^\d,.]/g, '');
+      if (!v) return 0;
+      v = v.indexOf(',') >= 0 ? v.replace(/\./g, '').replace(',', '.') : v;
+      const n = Math.round(Number(v) * 100) / 100;
+      return isNaN(n) ? NaN : n;
+    }
+    /* horários do dia escolhido */
+    function preencherHoras() {
+      const sel = $('#kHora');
+      if (!sel) return;
+      const antes = sel.value;
+      const doDia = slots.filter(x => x.data === $('#kDia').value);
+      sel.innerHTML = doDia.map(x => `<option value="${x.iso}">${x.hora}</option>`).join('');
+      if (doDia.some(x => x.iso === antes)) sel.value = antes;
+    }
+    if ($('#kDia')) { $('#kDia').addEventListener('change', preencherHoras); preencherHoras(); }
 
     /* pontos: mostra o saldo e, se der, a opção de trocar por desconto */
     let ultimaTaxa = 0, tipoCupom = null;
@@ -1042,7 +1269,7 @@
     $('#btnTiraCupom').addEventListener('click', () => { cupom = null; $('#kCupom').value = ''; mostrarCupom(); msgCupom(''); atualizar(); $('#kCupom').focus(); });
     if (fid) $('#pontosBox').addEventListener('change', atualizar);
     form.addEventListener('change', atualizar);
-    form.addEventListener('input', e => { if (e.target.id === 'kBairro' || e.target.id === 'kBairroOutro') atualizar(); });
+    form.addEventListener('input', e => { if (['kBairro', 'kBairroOutro', 'kGorjeta'].includes(e.target.id)) atualizar(); });
     atualizar();
 
     form.addEventListener('submit', async e => {
@@ -1061,6 +1288,12 @@
         if (!endereco || !endereco.rua || !endereco.numero || !endereco.bairro) return msg('Preencha rua, número e bairro.');
       }
       const troco = pag === 'dinheiro' && $('#kTroco').value ? Number($('#kTroco').value.replace(/\./g, '').replace(',', '.')) : null;
+      const quando = (form.querySelector('[name=quando]:checked') || {}).value || 'agora';
+      const hora = quando === 'agendar' && $('#kHora') ? $('#kHora').value : '';
+      if (quando === 'agendar' && !hora) return msg('Escolha o dia e o horário do agendamento.');
+      const gorj = tipo === 'entrega' ? lerGorjeta() : 0;
+      if (isNaN(gorj) || gorj < 0) return msg('Confira o valor da gorjeta.');
+      if (gorj > 200) return msg('A gorjeta pode ser de até R$ 200,00.');
 
       const btn = $('#btnConfirmar');
       btn.disabled = true;
@@ -1070,6 +1303,8 @@
       const extras = {};
       if (cupom) extras.p_cupom = cupom.codigo;
       if ($('#kPontos') && $('#kPontos').checked) extras.p_usar_pontos = true;
+      if (hora) extras.p_agendar_para = hora;
+      if (gorj > 0) extras.p_gorjeta = gorj;
       const { data, error } = await sb.rpc('criar_pedido', {
         ...extras,
         p_itens: PNC.carrinho.paraPedido(),
@@ -1261,6 +1496,7 @@
      CABEÇALHO, RODAPÉ, MENU
   =================================================================== */
   const topo = $('#topo');
+  const ICONE_PERFIL = $('.ic-perfil').innerHTML;
   function atualizarTopo() {
     const r = rotaAtual().nome;
     const temHero = r === 'inicio' || r === 'categoria' || r === 'explorar';
@@ -1272,7 +1508,10 @@
     });
     const n = PNC.carrinho.contar();
     $$('[data-badge]').forEach(b => { b.hidden = !n; b.textContent = n > 99 ? '99+' : n; });
-    $('.ic-perfil').setAttribute('aria-label', S.user ? 'Minha conta' : 'Entrar');
+    const ic = $('.ic-perfil'), foto = S.user && S.perfil && S.perfil.foto_url;
+    ic.setAttribute('aria-label', S.user ? 'Minha conta' : 'Entrar');
+    if (foto && ic.dataset.foto !== foto) { ic.dataset.foto = foto; ic.innerHTML = `<img class="avatar-topo" src="${esc(foto)}" alt="">`; }
+    else if (!foto && ic.dataset.foto) { delete ic.dataset.foto; ic.innerHTML = ICONE_PERFIL; }
   }
 
   function montarAviso() {
@@ -1343,7 +1582,7 @@
      CLIQUES E FORMULÁRIOS (delegação)
   =================================================================== */
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-add-rapido],[data-apagar-end],[data-copiar],[data-rolar],[data-cancelar-pedido]');
+    const t = e.target.closest('[data-produto],[data-fechar-janela],[data-foto],[data-qtd],[data-remover],[data-finalizar],[data-sair],[data-google],[data-fav],[data-add-rapido],[data-repetir],[data-copiar-link],[data-apagar-end],[data-copiar],[data-rolar],[data-cancelar-pedido]');
     if (!t) return;
     const d = t.dataset;
 
@@ -1354,6 +1593,8 @@
     else if (d.remover) PNC.carrinho.remover(d.remover);
     else if (d.finalizar !== undefined) irParaCheckout();
     else if (d.addRapido) adicionarRapido(Number(d.addRapido));
+    else if (d.repetir) { t.disabled = true; await repetirPedido(Number(d.repetir)); t.disabled = false; }
+    else if (d.copiarLink) { try { await navigator.clipboard.writeText(d.copiarLink); toast('Link copiado. É só colar e enviar.'); } catch (er) { toast(d.copiarLink); } }
     else if (d.sair !== undefined) { await sb.auth.signOut(); toast('Você saiu da conta.'); location.hash = 'inicio'; }
     else if (d.google !== undefined) entrarComGoogle();
     else if (d.fav) {
