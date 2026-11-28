@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Gerar chaves das notificações · Pão na Chapa</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0E0D0B;
+      color: #F6F2EA;
+      font: 16px/1.5 system-ui, sans-serif
+    }
+
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px 60px
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin: 0 0 8px
+    }
+
+    p,
+    li {
+      color: #d9d3c7
+    }
+
+    button {
+      font: 700 .95rem system-ui;
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #F2B705;
+      color: #0E0D0B
+    }
+
+    button.sec {
+      background: transparent;
+      color: #F6F2EA;
+      border: 1px solid #6b655a;
+      padding: 8px 12px;
+      font-size: .85rem
+    }
+
+    .chave {
+      margin: 18px 0;
+      padding: 16px;
+      border: 1px solid #3a362f;
+      border-radius: 8px;
+      background: #17150f
+    }
+
+    .chave h2 {
+      font-size: 1rem;
+      margin: 0 0 4px
+    }
+
+    .chave small {
+      display: block;
+      color: #b8b0a2;
+      margin-bottom: 8px
+    }
+
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font: 14px ui-monospace, monospace;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #3a362f;
+      background: #0E0D0B;
+      color: #fff;
+      resize: none
+    }
+
+    .perigo {
+      border-color: #8a2b1f
+    }
+
+    .perigo h2 {
+      color: #ff8d7a
+    }
+
+    [hidden] {
+      display: none
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Chaves das notificações no celular</h1>
+    <p>As chaves são criadas <b>aqui no seu navegador</b>. Nada é enviado para lugar nenhum. Gere uma vez só: se gerar
+      de novo, quem já ativou as notificações precisa ativar outra vez.</p>
+    <button type="button" id="gerar">Gerar chaves</button>
+    <p id="erro" hidden></p>
+    <div id="saida" hidden>
+      <div class="chave">
+        <h2>1. Chave pública (VAPID_PUBLICA)</h2><small>Vai em <b>js/config.js</b> (vapidPublica) e nos Secrets do
+          Supabase. Pode ser vista por qualquer um.</small>
+        <textarea id="pub" rows="3" readonly></textarea><button type="button" class="sec"
+          data-copiar="pub">Copiar</button>
+      </div>
+      <div class="chave perigo">
+        <h2>2. Chave privada (VAPID_PRIVADA): SEGREDO</h2><small>Vai <b>só</b> nos Secrets do Supabase. Nunca no site,
+          no GitHub ou em conversa.</small>
+        <textarea id="priv" rows="2" readonly></textarea><button type="button" class="sec"
+          data-copiar="priv">Copiar</button>
+      </div>
+      <div class="chave perigo">
+        <h2>3. Segredo do Webhook (PUSH_SEGREDO): SEGREDO</h2><small>Vai nos Secrets do Supabase <b>e</b> no cabeçalho
+          <b>x-pnc-segredo</b> do Database Webhook.</small>
+        <textarea id="seg" rows="2" readonly></textarea><button type="button" class="sec"
+          data-copiar="seg">Copiar</button>
+      </div>
+      <p>Depois de copiar tudo, feche esta página.</p>
+    </div>
+  </main>
+  <script>
+    const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    document.getElementById('gerar').addEventListener('click', async () => {
+      const erro = document.getElementById('erro');
+      try {
+        const par = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+        const pub = await crypto.subtle.exportKey('raw', par.publicKey);
+        const jwk = await crypto.subtle.exportKey('jwk', par.privateKey);
+        document.getElementById('pub').value = b64url(pub);
+        document.getElementById('priv').value = jwk.d;
+        document.getElementById('seg').value = b64url(crypto.getRandomValues(new Uint8Array(32)));
+        document.getElementById('saida').hidden = false;
+        erro.hidden = true;
+      } catch (e) {
+        erro.textContent = 'Este navegador não conseguiu gerar as chaves. Abra esta página pelo endereço do site (https) no Chrome.';
+        erro.hidden = false;
+      }
+    });
+    document.addEventListener('click', async e => {
+      const id = e.target.dataset && e.target.dataset.copiar;
+      if (!id) return;
+      const t = document.getElementById(id);
+      try { await navigator.clipboard.writeText(t.value); e.target.textContent = 'Copiado'; } catch (er) { t.select(); }
+      setTimeout(() => (e.target.textContent = 'Copiar'), 1500);
+    });
+  </script>
+</body>
+
+</html>
