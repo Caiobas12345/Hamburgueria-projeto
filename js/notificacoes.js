@@ -105,6 +105,7 @@
     }
     let sub = await inscricaoAtual().catch(() => null);
     // o aparelho está inscrito, mas para ESTA conta? (outra pessoa pode ter usado o aparelho)
+    if (sub && !mesmaChave(sub)) sub = null; // chave antiga: precisa ativar de novo
     if (sub) {
       const { data } = await sb.from('push_inscricoes').select('id').eq('endpoint', sub.endpoint).maybeSingle();
       if (!data) sub = null;
@@ -121,6 +122,15 @@
     return Uint8Array.from(bin, c => c.charCodeAt(0));
   }
 
+  function mesmaChave(sub) {
+    try {
+      const k = sub.options && sub.options.applicationServerKey;
+      if (!k) return true; // navegador não informa: mantém
+      const a = new Uint8Array(k), b = chaveBytes(VAPID);
+      return a.length === b.length && a.every((x, i) => x === b[i]);
+    } catch (e) { return true; }
+  }
+
   async function ligarPush(botao) {
     botao.disabled = true;
     try {
@@ -129,6 +139,8 @@
       if (perm !== 'granted') { PNC.toast('Sem permissão, o aparelho não recebe notificações.'); return desenharPush(); }
       await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
+      // inscrição feita com outra chave (ex.: chave trocada): descarta e cria de novo
+      if (sub && !mesmaChave(sub)) { await sub.unsubscribe().catch(() => { }); sub = null; }
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveBytes(VAPID) });
       const j = sub.toJSON();
       const aparelho = (navigator.userAgentData && navigator.userAgentData.platform) || (ehIOS() ? 'iPhone' : /android/i.test(navigator.userAgent) ? 'Android' : 'Computador');
